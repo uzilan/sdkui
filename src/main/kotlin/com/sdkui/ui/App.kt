@@ -184,14 +184,21 @@ class App(
                 val label = "$prefix$name"
                 val width = graphics.size.columns
                 val text = label.take(width).padEnd(width)
-                if (selected && focused) {
-                    graphics.setForegroundColor(TextColor.ANSI.BLACK)
-                    graphics.setBackgroundColor(TextColor.ANSI.GREEN)
-                    graphics.putString(0, 0, text)
+                val theme = LanternaThemes.getRegisteredTheme(name)
+                val def = theme?.getDefinition(ActionListBox::class.java)
+                if (def != null) {
+                    val style = if (selected && focused) def.selected else def.normal
+                    graphics.applyThemeStyle(style)
                 } else {
-                    super.drawItem(graphics, lb, index, item, selected, focused)
-                    graphics.putString(0, 0, text)
+                    if (selected && focused) {
+                        graphics.setForegroundColor(TextColor.ANSI.BLACK)
+                        graphics.setBackgroundColor(TextColor.ANSI.GREEN)
+                    } else {
+                        super.drawItem(graphics, lb, index, item, selected, focused)
+                    }
                 }
+                graphics.fill(' ')
+                graphics.putString(0, 0, text)
             }
         })
         themes.forEach { name ->
