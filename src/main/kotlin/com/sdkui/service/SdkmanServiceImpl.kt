@@ -44,14 +44,14 @@ class SdkmanServiceImpl : SdkmanService {
         }
 
     override fun install(candidate: String, identifier: String): Flow<String> = flow {
-        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install $candidate $identifier")
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install '$candidate' '$identifier'")
             .redirectErrorStream(true).start()
         proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
         proc.waitFor()
     }.flowOn(Dispatchers.IO)
 
     override fun uninstall(candidate: String, identifier: String): Flow<String> = flow {
-        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk uninstall $candidate $identifier")
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk uninstall '$candidate' '$identifier'")
             .redirectErrorStream(true).start()
         proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
         proc.waitFor()
