@@ -13,7 +13,7 @@ class SdkmanServiceImpl : SdkmanService {
     private val sdkmanInit = "${System.getProperty("user.home")}/.sdkman/bin/sdkman-init.sh"
 
     internal fun runSdk(vararg args: String): String {
-        val cmd = "source $sdkmanInit && sdk ${args.joinToString(" ")}"
+        val cmd = "source $sdkmanInit && sdk ${args.joinToString(" ") { "'$it'" }}"
         val proc = ProcessBuilder("/bin/bash", "-c", cmd)
             .redirectErrorStream(true)
             .start()
