@@ -1,0 +1,128 @@
+package com.sdkui.service
+
+import com.sdkui.model.Sdk
+import com.sdkui.model.Version
+import com.sdkui.model.VersionStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+
+class SdkmanServiceImpl : SdkmanService {
+    private val sdkmanInit = "${System.getProperty("user.home")}/.sdkman/bin/sdkman-init.sh"
+
+    internal fun runSdk(vararg args: String): String {
+        val cmd = "source $sdkmanInit && sdk ${args.joinToString(" ")}"
+        val proc = ProcessBuilder("/bin/bash", "-c", cmd)
+            .redirectErrorStream(true)
+            .start()
+        val output = proc.inputStream.bufferedReader().readText()
+        proc.waitFor()
+        return output
+    }
+
+    override suspend fun listCandidates(): Result<List<Sdk>> = withContext(Dispatchers.IO) {
+        runCatching { parseCandidates(runSdk("list")) }
+    }
+
+    override suspend fun getCurrentDefaults(): Result<Map<String, String>> = withContext(Dispatchers.IO) {
+        runCatching { parseDefaults(runSdk("current")) }
+    }
+
+    override suspend fun listVersions(candidate: String, vendor: String?): Result<List<Version>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val raw = runSdk("list", candidate)
+                if (candidate == "java") parseJavaVersions(raw, vendor) else parseGenericVersions(raw)
+            }
+        }
+
+    override suspend fun setDefault(candidate: String, identifier: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching { runSdk("default", candidate, identifier); Unit }
+        }
+
+    override fun install(candidate: String, identifier: String): Flow<String> = flow {
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install $candidate $identifier")
+            .redirectErrorStream(true).start()
+        proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
+        proc.waitFor()
+    }.flowOn(Dispatchers.IO)
+
+    override fun uninstall(candidate: String, identifier: String): Flow<String> = flow {
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk uninstall $candidate $identifier")
+            .redirectErrorStream(true).start()
+        proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
+        proc.waitFor()
+    }.flowOn(Dispatchers.IO)
+
+    companion object {
+        // Old format: " Java (21.0.11-tem)    (j) java"
+        private val CANDIDATE_RE = Regex("""^\s+\S.*?\(([^)]+)\)\s+\(\w+\)\s+(\w+)\s*$""")
+        // New format helpers
+        private val SEPARATOR_RE = Regex("""-{10,}""")
+        private val INSTALL_RE = Regex("""^\s*\$\s+sdk install (\w+)\s*$""")
+        private val PAREN_VERSION_RE = Regex("""\(([^)]+)\)""")
+
+        fun parseCandidates(raw: String): List<Sdk> {
+            val lines = raw.lines()
+            // Try old format first (unit-test fixtures use this)
+            val oldFormat = lines.mapNotNull { line ->
+                CANDIDATE_RE.find(line)?.let { m ->
+                    Sdk(name = m.groupValues[2], version = m.groupValues[1], description = "")
+                }
+            }
+            if (oldFormat.isNotEmpty()) return oldFormat
+
+            // New format: split on --- separators, find install line + header version per block
+            val result = mutableListOf<Sdk>()
+            var block = mutableListOf<String>()
+
+            fun flushBlock() {
+                val name = block.mapNotNull { INSTALL_RE.find(it)?.groupValues?.get(1) }.firstOrNull()
+                if (name != null) {
+                    val header = block.firstOrNull { it.isNotBlank() }
+                    val version = header?.let { PAREN_VERSION_RE.findAll(it).lastOrNull()?.groupValues?.get(1) } ?: ""
+                    result.add(Sdk(name = name, version = version, description = ""))
+                }
+                block = mutableListOf()
+            }
+
+            for (line in lines) {
+                if (SEPARATOR_RE.matches(line.trim())) flushBlock() else block.add(line)
+            }
+            flushBlock()
+            return result
+        }
+
+        fun parseDefaults(raw: String): Map<String, String> =
+            raw.lines().mapNotNull { line ->
+                val parts = line.trim().split(": ", limit = 2)
+                if (parts.size == 2 && parts[0].isNotBlank() && !parts[0].contains(' '))
+                    parts[0] to parts[1].trim()
+                else null
+            }.toMap()
+
+        fun parseJavaVersions(raw: String, vendor: String?): List<Version> =
+            raw.lines()
+                .filter { it.contains("|") && !it.trimStart().startsWith("-") && !it.trimStart().startsWith("Vendor") }
+                .mapNotNull { line ->
+                    val cols = line.split("|").map { it.trim() }
+                    if (cols.size < 6) return@mapNotNull null
+                    val v = cols[0].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val number = cols[2].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val identifier = cols[5].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    if (vendor != null && !v.equals(vendor, ignoreCase = true)) return@mapNotNull null
+                    Version(number = number, vendor = v, identifier = identifier, status = VersionStatus.AVAILABLE)
+                }
+
+        private val VERSION_TOKEN = Regex("""^\d+\.\d[\d.]*$""")
+
+        fun parseGenericVersions(raw: String): List<Version> =
+            raw.lines()
+                .flatMap { it.trim().split(Regex("""\s+""")) }
+                .filter { VERSION_TOKEN.matches(it) }
+                .map { Version(number = it, identifier = it, status = VersionStatus.AVAILABLE) }
+    }
+}
