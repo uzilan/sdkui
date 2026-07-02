@@ -1,6 +1,7 @@
 package com.sdkui.viewmodel
 
 import com.sdkui.model.AppState
+import com.sdkui.model.Overlay
 import com.sdkui.model.Sdk
 import com.sdkui.model.Version
 import com.sdkui.model.VersionStatus
@@ -8,9 +9,11 @@ import com.sdkui.service.SdkmanService
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -87,6 +90,52 @@ class AppViewModel(
                     update { copy(loading = false) }
                     setStatusMessage(e.message ?: "Error loading versions")
                 }
+            )
+        }
+    }
+
+    fun openProgress(title: String) {
+        update { copy(overlay = Overlay.Progress(title, emptyList())) }
+    }
+
+    fun appendProgressLine(line: String) {
+        val current = _state.value.overlay as? Overlay.Progress ?: return
+        update { copy(overlay = current.copy(lines = current.lines + line)) }
+    }
+
+    fun closeOverlay() {
+        update { copy(overlay = null) }
+    }
+
+    private suspend fun runWithProgress(title: String, flow: Flow<String>, onDone: suspend () -> Unit = {}) {
+        openProgress(title)
+        flow.collect { line -> appendProgressLine(line) }
+        onDone()
+        closeOverlay()
+    }
+
+    fun installSelected() {
+        val candidate = _state.value.selectedCandidate ?: return
+        val version = _state.value.selectedVersion ?: return
+        scope.launch {
+            runWithProgress("Installing ${version.identifier}", service.install(candidate.name, version.identifier)) {
+                loadVersions()
+                setStatusMessage("Installed ${version.identifier}")
+            }
+        }
+    }
+
+    fun setDefaultSelected() {
+        val candidate = _state.value.selectedCandidate ?: return
+        val version = _state.value.selectedVersion ?: return
+        scope.launch {
+            service.setDefault(candidate.name, version.identifier).fold(
+                onSuccess = {
+                    update { copy(currentDefaults = currentDefaults + (candidate.name to version.identifier)) }
+                    loadVersions()
+                    setStatusMessage("Default set to ${version.identifier}")
+                },
+                onFailure = { e -> setStatusMessage(e.message ?: "Error setting default") }
             )
         }
     }

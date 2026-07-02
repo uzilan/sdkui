@@ -1,6 +1,7 @@
 package com.sdkui.viewmodel
 
 import com.sdkui.FakeSdkmanService
+import com.sdkui.model.Overlay
 import com.sdkui.model.VersionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -133,5 +134,50 @@ class AppViewModelTest {
         vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
         advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
         assertTrue(vm.state.value.statusMessage.contains("parse error"))
+    }
+
+    @Test
+    fun `installSelected streams progress and refreshes versions`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        vm.installSelected()
+        advanceUntilIdle()
+        // overlay dismissed after install
+        assertNull(vm.state.value.overlay)
+        // versions reloaded
+        assertEquals(10, vm.state.value.versions.size)
+    }
+
+    @Test
+    fun `installSelected does nothing when no version selected`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.installSelected()
+        advanceUntilIdle()
+        assertNull(vm.state.value.overlay)
+    }
+
+    @Test
+    fun `setDefaultSelected updates currentDefaults and reloads versions`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        val newDefault = vm.state.value.versions.first { it.identifier == "26.0.1-tem" }
+        vm.selectVersion(newDefault)
+        vm.setDefaultSelected()
+        advanceUntilIdle()
+        assertEquals("26.0.1-tem", vm.state.value.currentDefaults["java"])
+        assertEquals(VersionStatus.DEFAULT, vm.state.value.versions.first { it.identifier == "26.0.1-tem" }.status)
+    }
+
+    @Test
+    fun `closeOverlay clears overlay`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.openProgress("test")
+        assertTrue(vm.state.value.overlay is Overlay.Progress)
+        vm.closeOverlay()
+        assertNull(vm.state.value.overlay)
     }
 }
