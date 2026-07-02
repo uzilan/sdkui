@@ -140,6 +140,35 @@ class AppViewModel(
         }
     }
 
+    fun requestUninstallSelected() {
+        val candidate = _state.value.selectedCandidate ?: return
+        val version = _state.value.selectedVersion ?: return
+        update {
+            copy(overlay = Overlay.Confirm("Uninstall ${version.identifier}?") {
+                scope.launch {
+                    closeOverlay()
+                    runWithProgress("Uninstalling ${version.identifier}", service.uninstall(candidate.name, version.identifier)) {
+                        loadVersions()
+                        setStatusMessage("Uninstalled ${version.identifier}")
+                    }
+                }
+            })
+        }
+    }
+
+    fun refreshVersions() {
+        scope.launch {
+            service.getCurrentDefaults().onSuccess { defaults ->
+                update { copy(currentDefaults = defaults) }
+            }
+            loadVersions()
+        }
+    }
+
+    fun showHelp() {
+        update { copy(overlay = Overlay.Help) }
+    }
+
     fun setStatusMessage(message: String) {
         update { copy(statusMessage = message) }
         scope.launch {

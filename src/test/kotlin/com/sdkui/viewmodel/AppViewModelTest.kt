@@ -180,4 +180,56 @@ class AppViewModelTest {
         vm.closeOverlay()
         assertNull(vm.state.value.overlay)
     }
+
+    @Test
+    fun `requestUninstallSelected shows Confirm overlay`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        vm.requestUninstallSelected()
+        val overlay = vm.state.value.overlay
+        assertTrue(overlay is Overlay.Confirm)
+        assertTrue((overlay as Overlay.Confirm).message.contains("26.0.1-tem"))
+    }
+
+    @Test
+    fun `requestUninstallSelected does nothing when no version selected`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.requestUninstallSelected()
+        assertNull(vm.state.value.overlay)
+    }
+
+    @Test
+    fun `confirm uninstall runs uninstall and refreshes`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        vm.requestUninstallSelected()
+        val confirm = vm.state.value.overlay as Overlay.Confirm
+        confirm.onConfirm()
+        advanceUntilIdle()
+        assertNull(vm.state.value.overlay)
+        assertEquals(10, vm.state.value.versions.size)
+    }
+
+    @Test
+    fun `refreshVersions reloads defaults and versions`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        vm.refreshVersions()
+        advanceUntilIdle()
+        assertEquals(10, vm.state.value.versions.size)
+        assertFalse(vm.state.value.loading)
+    }
+
+    @Test
+    fun `showHelp sets Help overlay`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.showHelp()
+        assertTrue(vm.state.value.overlay is Overlay.Help)
+    }
 }
