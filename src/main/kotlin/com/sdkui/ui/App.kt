@@ -26,6 +26,8 @@ import com.googlecode.lanterna.input.KeyType
 import com.googlecode.lanterna.screen.Screen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import java.io.File
+import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
 
 class App(
@@ -34,6 +36,7 @@ class App(
     private val viewModel: AppViewModel,
     private val scope: CoroutineScope
 ) {
+    private val logFile = File(System.getProperty("user.home"), ".sdkui.log")
     private val versionListPanel = VersionListPanel()
     private val detailPanel = DetailPanel()
     private val statusBar = StatusBar()
@@ -42,6 +45,10 @@ class App(
     private val window = BasicWindow("SDKUI — SDK Manager")
     private var currentThemeName = "businessmachine"
     private var currentOverlayWindow: BasicWindow? = null
+
+    private fun log(msg: String) {
+        logFile.appendText("[${LocalDateTime.now()}] $msg\n")
+    }
 
     fun run() {
         window.setHints(setOf(Window.Hint.FULL_SCREEN, Window.Hint.NO_DECORATIONS))
@@ -95,12 +102,18 @@ class App(
         })
 
         scope.launch {
-            viewModel.state.collect { state ->
-                synchronized(gui) {
-                    applyState(state)
-                    try { gui.updateScreen() } catch (_: Exception) {}
+            runCatching {
+                viewModel.state.collect { state ->
+                    synchronized(gui) {
+                        try {
+                            applyState(state)
+                        } catch (e: Exception) {
+                            log("applyState error: ${e}")
+                        }
+                        try { gui.updateScreen() } catch (_: Exception) {}
+                    }
                 }
-            }
+            }.onFailure { log("state collector error: $it") }
         }
 
         gui.addWindowAndWait(window)

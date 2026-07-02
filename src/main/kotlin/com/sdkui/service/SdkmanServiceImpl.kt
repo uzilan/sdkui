@@ -46,6 +46,7 @@ class SdkmanServiceImpl : SdkmanService {
     override fun install(candidate: String, identifier: String): Flow<String> = flow {
         val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install '$candidate' '$identifier'")
             .redirectErrorStream(true).start()
+        proc.outputStream.close()
         proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
         proc.waitFor()
     }.flowOn(Dispatchers.IO)
@@ -104,18 +105,21 @@ class SdkmanServiceImpl : SdkmanService {
                 else null
             }.toMap()
 
-        fun parseJavaVersions(raw: String, vendor: String?): List<Version> =
-            raw.lines()
+        fun parseJavaVersions(raw: String, vendor: String?): List<Version> {
+            var currentVendor = ""
+            return raw.lines()
                 .filter { it.contains("|") && !it.trimStart().startsWith("-") && !it.trimStart().startsWith("Vendor") }
                 .mapNotNull { line ->
                     val cols = line.split("|").map { it.trim() }
                     if (cols.size < 6) return@mapNotNull null
-                    val v = cols[0].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                    val v = cols[0].takeIf { it.isNotEmpty() }?.also { currentVendor = it } ?: currentVendor
+                    if (v.isEmpty()) return@mapNotNull null
                     val number = cols[2].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                     val identifier = cols[5].takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                     if (vendor != null && !v.equals(vendor, ignoreCase = true)) return@mapNotNull null
                     Version(number = number, vendor = v, identifier = identifier, status = VersionStatus.AVAILABLE)
                 }
+        }
 
         private val VERSION_TOKEN = Regex("""^\d+\.\d[\d.]*$""")
 

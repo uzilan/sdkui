@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private val ANSI_RE = Regex("""\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])""")
+
 class AppViewModel(
     private val service: SdkmanService,
     private val scope: CoroutineScope,
@@ -99,6 +101,12 @@ class AppViewModel(
                             v.identifier in installed -> VersionStatus.INSTALLED
                             else -> VersionStatus.AVAILABLE
                         })
+                    }.sortedWith { a, b ->
+                        val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
+                        val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
+                        (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
+                            (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
+                        } ?: 0
                     }
                     update {
                         copy(
@@ -123,7 +131,8 @@ class AppViewModel(
 
     fun appendProgressLine(line: String) {
         val current = _state.value.overlay as? Overlay.Progress ?: return
-        update { copy(overlay = current.copy(lines = current.lines + line)) }
+        val clean = line.replace(ANSI_RE, "")
+        update { copy(overlay = current.copy(lines = current.lines + clean)) }
     }
 
     fun closeOverlay() {
@@ -138,7 +147,7 @@ class AppViewModel(
         } catch (e: Exception) {
             setStatusMessage("Error: ${e.message}")
         } finally {
-            delay(500)
+            delay(2_000)
             closeOverlay()
         }
     }
