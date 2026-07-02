@@ -71,7 +71,23 @@ class AppViewModel(
         val vendor = _state.value.selectedVendor
         scope.launch {
             update { copy(loading = true) }
-            service.listVersions(candidate.name, vendor).fold(
+
+            var newAvailableVendors: List<String>? = null
+            var effectiveVendor: String? = vendor
+
+            if (candidate.name == "java" && vendor == null) {
+                val allResult = service.listVersions("java", null)
+                if (allResult.isFailure) {
+                    update { copy(loading = false) }
+                    setStatusMessage(allResult.exceptionOrNull()?.message ?: "Error loading versions")
+                    return@launch
+                }
+                val allVersions = allResult.getOrThrow()
+                newAvailableVendors = allVersions.mapNotNull { it.vendor }.distinct()
+                effectiveVendor = newAvailableVendors.firstOrNull()
+            }
+
+            service.listVersions(candidate.name, effectiveVendor).fold(
                 onSuccess = { raw ->
                     val defaults = _state.value.currentDefaults
                     val installed = File("$sdkmanRoot/candidates/${candidate.name}")
@@ -84,7 +100,14 @@ class AppViewModel(
                             else -> VersionStatus.AVAILABLE
                         })
                     }
-                    update { copy(loading = false, versions = versions, selectedVersion = versions.firstOrNull()) }
+                    update {
+                        copy(
+                            loading = false,
+                            versions = versions,
+                            availableVendors = newAvailableVendors ?: availableVendors,
+                            selectedVersion = versions.firstOrNull()
+                        )
+                    }
                 },
                 onFailure = { e ->
                     update { copy(loading = false) }
@@ -109,9 +132,15 @@ class AppViewModel(
 
     private suspend fun runWithProgress(title: String, flow: Flow<String>, onDone: suspend () -> Unit = {}) {
         openProgress(title)
-        flow.collect { line -> appendProgressLine(line) }
-        onDone()
-        closeOverlay()
+        try {
+            flow.collect { line -> appendProgressLine(line) }
+            onDone()
+        } catch (e: Exception) {
+            setStatusMessage("Error: ${e.message}")
+        } finally {
+            delay(500)
+            closeOverlay()
+        }
     }
 
     fun installSelected() {

@@ -23,7 +23,7 @@ class VendorDropdown : ComboBox<String>() {
             isEnabled = false
             return
         }
-        val vendors = state.versions.mapNotNull { it.vendor }.distinct()
+        val vendors = state.availableVendors
         if (vendors != lastVendors) {
             lastVendors = vendors
             clearItems()
