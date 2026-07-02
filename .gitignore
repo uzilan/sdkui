@@ -1,1 +1,9 @@
 .superpowers/
+.gradle/
+build/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
