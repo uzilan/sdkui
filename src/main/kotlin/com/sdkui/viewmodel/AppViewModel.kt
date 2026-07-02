@@ -1,7 +1,11 @@
 package com.sdkui.viewmodel
 
 import com.sdkui.model.AppState
+import com.sdkui.model.Sdk
+import com.sdkui.model.Version
+import com.sdkui.model.VersionStatus
 import com.sdkui.service.SdkmanService
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +46,48 @@ class AppViewModel(
                     currentDefaults = defaults.getOrThrow()
                 )
             }
+        }
+    }
+
+    fun selectCandidate(sdk: Sdk) {
+        update { copy(selectedCandidate = sdk, selectedVendor = null, versions = emptyList(), selectedVersion = null) }
+        loadVersions()
+    }
+
+    fun selectVendor(vendor: String) {
+        update { copy(selectedVendor = vendor, versions = emptyList(), selectedVersion = null) }
+        loadVersions()
+    }
+
+    fun selectVersion(version: Version) {
+        update { copy(selectedVersion = version) }
+    }
+
+    private fun loadVersions() {
+        val candidate = _state.value.selectedCandidate ?: return
+        val vendor = _state.value.selectedVendor
+        scope.launch {
+            update { copy(loading = true) }
+            service.listVersions(candidate.name, vendor).fold(
+                onSuccess = { raw ->
+                    val defaults = _state.value.currentDefaults
+                    val installed = File("$sdkmanRoot/candidates/${candidate.name}")
+                        .listFiles()?.map { it.name }?.toSet() ?: emptySet()
+                    val defaultId = defaults[candidate.name]
+                    val versions = raw.map { v ->
+                        v.copy(status = when {
+                            v.identifier == defaultId -> VersionStatus.DEFAULT
+                            v.identifier in installed -> VersionStatus.INSTALLED
+                            else -> VersionStatus.AVAILABLE
+                        })
+                    }
+                    update { copy(loading = false, versions = versions, selectedVersion = versions.firstOrNull()) }
+                },
+                onFailure = { e ->
+                    update { copy(loading = false) }
+                    setStatusMessage(e.message ?: "Error loading versions")
+                }
+            )
         }
     }
 

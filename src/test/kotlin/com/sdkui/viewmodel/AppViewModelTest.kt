@@ -1,10 +1,12 @@
 package com.sdkui.viewmodel
 
 import com.sdkui.FakeSdkmanService
+import com.sdkui.model.VersionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,5 +57,81 @@ class AppViewModelTest {
         assertEquals("hello", vm.state.value.statusMessage)
         advanceTimeBy(3_001)
         assertEquals("", vm.state.value.statusMessage)
+    }
+
+    @Test
+    fun `selectCandidate loads versions and auto-selects first`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        advanceUntilIdle()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        with(vm.state.value) {
+            assertEquals(FakeSdkmanService.CANDIDATES[0], selectedCandidate)
+            assertEquals(10, versions.size)
+            assertEquals(versions[0], selectedVersion)
+            assertFalse(loading)
+        }
+    }
+
+    @Test
+    fun `loadVersions assigns DEFAULT status from currentDefaults`() = runTest {
+        val root = Files.createTempDirectory("sdkui-test").toFile()
+        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
+        vm.loadCandidatesAndDefaults()   // sets currentDefaults["java"] = "21.0.11-tem"
+        advanceUntilIdle()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        val java21 = vm.state.value.versions.first { it.identifier == "21.0.11-tem" }
+        assertEquals(VersionStatus.DEFAULT, java21.status)
+    }
+
+    @Test
+    fun `loadVersions assigns INSTALLED status from filesystem`() = runTest {
+        val root = Files.createTempDirectory("sdkui-test").toFile()
+        File(root, "candidates/java/25.0.3-tem").mkdirs()
+        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
+        vm.loadCandidatesAndDefaults()
+        advanceUntilIdle()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        val java25 = vm.state.value.versions.first { it.identifier == "25.0.3-tem" }
+        assertEquals(VersionStatus.INSTALLED, java25.status)
+    }
+
+    @Test
+    fun `selectVendor filters versions by vendor`() = runTest {
+        val fake = FakeSdkmanService()
+        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        fake.versionsResult = Result.success(FakeSdkmanService.JAVA_VERSIONS.filter { it.vendor == "Corretto" })
+        vm.selectVendor("Corretto")
+        advanceUntilIdle()
+        assertEquals("Corretto", vm.state.value.selectedVendor)
+        assertTrue(vm.state.value.versions.all { it.vendor == "Corretto" })
+    }
+
+    @Test
+    fun `selectVersion updates selectedVersion`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        val target = vm.state.value.versions[3]
+        vm.selectVersion(target)
+        assertEquals(target, vm.state.value.selectedVersion)
+    }
+
+    @Test
+    fun `loadVersions on error sets statusMessage`() = runTest {
+        val fake = FakeSdkmanService().apply {
+            versionsResult = Result.failure(RuntimeException("parse error"))
+        }
+        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
+        assertTrue(vm.state.value.statusMessage.contains("parse error"))
     }
 }
