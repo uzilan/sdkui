@@ -38,11 +38,10 @@ class SdkmanServiceImplTest {
     @Test
     fun `parseDefaults extracts candidate-to-identifier map`() {
         val raw = """
-            Using:
-
-            java: 21.0.11-tem
-            kotlin: 2.1.20
-            gradle: 8.13
+            Current versions in use:
+            java 21.0.11-tem
+            kotlin 2.1.20
+            gradle 8.13
         """.trimIndent()
         val result = SdkmanServiceImpl.parseDefaults(raw)
         assertEquals(mapOf("java" to "21.0.11-tem", "kotlin" to "2.1.20", "gradle" to "8.13"), result)

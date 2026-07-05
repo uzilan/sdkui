@@ -99,8 +99,8 @@ class SdkmanServiceImpl : SdkmanService {
 
         fun parseDefaults(raw: String): Map<String, String> =
             raw.lines().mapNotNull { line ->
-                val parts = line.trim().split(": ", limit = 2)
-                if (parts.size == 2 && parts[0].isNotBlank() && !parts[0].contains(' '))
+                val parts = line.trim().split(Regex("""\s+"""), limit = 2)
+                if (parts.size == 2 && parts[0].isNotBlank() && parts[0][0].isLowerCase())
                     parts[0] to parts[1].trim()
                 else null
             }.toMap()
