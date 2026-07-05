@@ -157,6 +157,9 @@ class AppViewModel(
         val version = _state.value.selectedVersion ?: return
         scope.launch {
             runWithProgress("Installing ${version.identifier}", service.install(candidate.name, version.identifier)) {
+                service.getCurrentDefaults().onSuccess { defaults ->
+                    update { copy(currentDefaults = defaults) }
+                }
                 loadVersions()
                 setStatusMessage("Installed ${version.identifier}")
             }

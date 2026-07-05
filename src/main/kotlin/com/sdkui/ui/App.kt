@@ -43,9 +43,12 @@ class App(
     private val statusBar = StatusBar()
     private val candidateDropdown = CandidateDropdown()
     private val vendorDropdown = VendorDropdown()
+    private val vendorLabel = Label("   Vendor: ")
+    private val topPanel = Panel(LinearLayout(Direction.HORIZONTAL))
     private val window = BasicWindow("SDKUI — SDK Manager")
     private var currentThemeName = "businessmachine"
     private var currentOverlayWindow: BasicWindow? = null
+    private var vendorVisible = true
 
     private fun log(msg: String) {
         logFile.appendText("[${LocalDateTime.now()}] $msg\n")
@@ -55,10 +58,9 @@ class App(
         window.setHints(setOf(Window.Hint.FULL_SCREEN, Window.Hint.NO_DECORATIONS))
 
         // Top: dropdowns
-        val topPanel = Panel(LinearLayout(Direction.HORIZONTAL))
         topPanel.addComponent(Label(" Candidate: "))
         topPanel.addComponent(candidateDropdown)
-        topPanel.addComponent(Label("   Vendor: "))
+        topPanel.addComponent(vendorLabel)
         topPanel.addComponent(vendorDropdown)
 
         // Center: version list + details side by side
@@ -126,6 +128,17 @@ class App(
         versionListPanel.applyState(state)
         detailPanel.applyState(state)
         statusBar.setText(if (state.loading) "Loading..." else state.statusMessage)
+        val isJava = state.selectedCandidate?.name == "java"
+        if (isJava != vendorVisible) {
+            vendorVisible = isJava
+            if (isJava) {
+                topPanel.addComponent(vendorLabel)
+                topPanel.addComponent(vendorDropdown)
+            } else {
+                topPanel.removeComponent(vendorLabel)
+                topPanel.removeComponent(vendorDropdown)
+            }
+        }
         renderOverlay(state)
     }
 
