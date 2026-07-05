@@ -78,7 +78,7 @@ class App(
         // Bottom: status + key hints
         val bottomPanel = Panel(LinearLayout(Direction.VERTICAL))
         bottomPanel.addComponent(statusBar)
-        bottomPanel.addComponent(Label("  i-install  u-use  x-uninstall  r-refresh  t-themes  c-current  h-help  q-quit"))
+        bottomPanel.addComponent(Label("  i-install  u-use  x-uninstall  r-refresh  b-browse  t-themes  c-current  h-help  q-quit"))
 
         val root = Panel(BorderLayout())
         root.addComponent(topPanel.withBorder(Borders.singleLine()), BorderLayout.Location.TOP)
@@ -180,7 +180,7 @@ class App(
                 currentOverlayWindow?.close()
                 currentOverlayWindow = CandidateBrowserOverlay(
                     candidates = overlay.candidates,
-                    onInstall = { viewModel.closeOverlay() },
+                    onInstall = { sdk -> viewModel.closeOverlay(); viewModel.installLatestCandidate(sdk) },
                     onDismiss = { viewModel.closeOverlay() }
                 ).also { gui.addWindow(it) }
             }
@@ -196,6 +196,7 @@ class App(
             key.keyType == KeyType.Character && key.character == 'r' -> viewModel.refreshVersions()
             key.keyType == KeyType.Character && key.character == 'h' -> viewModel.showHelp()
             key.keyType == KeyType.Character && key.character == 'c' -> viewModel.showCurrentVersions()
+            key.keyType == KeyType.Character && key.character == 'b' -> viewModel.showCandidateBrowser()
             key.keyType == KeyType.Character && key.character == 't' -> openThemeChooser()
             key.keyType == KeyType.Escape -> viewModel.closeOverlay()
             else -> {}
