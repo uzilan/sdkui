@@ -9,6 +9,6 @@ interface SdkmanService {
     suspend fun getCurrentDefaults(): Result<Map<String, String>>
     suspend fun listVersions(candidate: String, vendor: String? = null): Result<List<Version>>
     suspend fun setDefault(candidate: String, identifier: String): Result<Unit>
-    fun install(candidate: String, identifier: String): Flow<String>
+    fun install(candidate: String, identifier: String?): Flow<String>
     fun uninstall(candidate: String, identifier: String): Flow<String>
 }

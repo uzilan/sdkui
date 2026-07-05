@@ -43,8 +43,9 @@ class SdkmanServiceImpl : SdkmanService {
             runCatching { runSdk("default", candidate, identifier); Unit }
         }
 
-    override fun install(candidate: String, identifier: String): Flow<String> = flow {
-        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install '$candidate' '$identifier'")
+    override fun install(candidate: String, identifier: String?): Flow<String> = flow {
+        val versionArg = if (identifier != null) " '$identifier'" else ""
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk install '$candidate'$versionArg")
             .redirectErrorStream(true).start()
         proc.outputStream.close()
         proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }

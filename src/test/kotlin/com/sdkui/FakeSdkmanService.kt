@@ -19,7 +19,7 @@ class FakeSdkmanService : SdkmanService {
     override suspend fun getCurrentDefaults() = defaultsResult
     override suspend fun listVersions(candidate: String, vendor: String?) = versionsResult
     override suspend fun setDefault(candidate: String, identifier: String) = setDefaultResult
-    override fun install(candidate: String, identifier: String): Flow<String> =
+    override fun install(candidate: String, identifier: String?): Flow<String> =
         flowOf(*installLines.toTypedArray())
     override fun uninstall(candidate: String, identifier: String): Flow<String> =
         flowOf(*uninstallLines.toTypedArray())
