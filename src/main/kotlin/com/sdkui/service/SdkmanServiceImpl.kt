@@ -83,9 +83,18 @@ class SdkmanServiceImpl : SdkmanService {
             fun flushBlock() {
                 val name = block.mapNotNull { INSTALL_RE.find(it)?.groupValues?.get(1) }.firstOrNull()
                 if (name != null) {
-                    val header = block.firstOrNull { it.isNotBlank() }
+                    val headerIdx = block.indexOfFirst { it.isNotBlank() }
+                    val installIdx = block.indexOfFirst { INSTALL_RE.find(it) != null }
+                    val header = if (headerIdx >= 0) block[headerIdx] else null
                     val version = header?.let { PAREN_VERSION_RE.findAll(it).lastOrNull()?.groupValues?.get(1) } ?: ""
-                    result.add(Sdk(name = name, version = version, description = ""))
+                    val description = if (headerIdx >= 0 && installIdx > headerIdx) {
+                        block.subList(headerIdx + 1, installIdx)
+                            .map { it.trim() }
+                            .dropWhile { it.isBlank() }
+                            .dropLastWhile { it.isBlank() }
+                            .joinToString("\n")
+                    } else ""
+                    result.add(Sdk(name = name, version = version, description = description))
                 }
                 block = mutableListOf()
             }

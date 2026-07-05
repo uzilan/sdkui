@@ -94,6 +94,34 @@ class SdkmanServiceImplTest {
     }
 
     @Test
+    fun `parseCandidates extracts description from new format`() {
+        val raw = """
+            --------------------------------------------------------------------------------
+            Apache Ant (1.10.14)
+
+            Apache Ant is a Java library and command-line tool.
+
+             $ sdk install ant
+
+            --------------------------------------------------------------------------------
+            Kotlin (2.1.20)
+
+            The Kotlin Programming Language.
+
+             $ sdk install kotlin
+
+            --------------------------------------------------------------------------------
+        """.trimIndent()
+        val result = SdkmanServiceImpl.parseCandidates(raw)
+        assertEquals(2, result.size)
+        assertEquals("ant", result[0].name)
+        assertEquals("1.10.14", result[0].version)
+        assertEquals("Apache Ant is a Java library and command-line tool.", result[0].description)
+        assertEquals("kotlin", result[1].name)
+        assertEquals("The Kotlin Programming Language.", result[1].description)
+    }
+
+    @Test
     fun `integration - listCandidates returns non-empty list`() = runTest {
         Assumptions.assumeTrue(sdkmanInit.exists(), "SDKMAN not installed — skipping integration test")
         val service = SdkmanServiceImpl()
