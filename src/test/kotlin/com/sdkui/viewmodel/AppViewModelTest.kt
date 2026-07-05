@@ -232,4 +232,38 @@ class AppViewModelTest {
         vm.showHelp()
         assertTrue(vm.state.value.overlay is Overlay.Help)
     }
+
+    @Test
+    fun `showCandidateBrowser sets CandidateBrowser overlay with loaded candidates`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        advanceUntilIdle()
+        vm.showCandidateBrowser()
+        val overlay = vm.state.value.overlay
+        assertTrue(overlay is Overlay.CandidateBrowser)
+        assertEquals(FakeSdkmanService.CANDIDATES, (overlay as Overlay.CandidateBrowser).candidates)
+    }
+
+    @Test
+    fun `installLatestCandidate streams progress and sets status message`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        advanceUntilIdle()
+        vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[2]) // maven, no selectedCandidate
+        advanceTimeBy(2_001) // past the 2s overlay delay, but before the 3s status-clear
+        assertNull(vm.state.value.overlay)
+        assertEquals("Installed maven", vm.state.value.statusMessage)
+    }
+
+    @Test
+    fun `installLatestCandidate reloads versions when a candidate is selected`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.loadCandidatesAndDefaults()
+        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[0])
+        advanceUntilIdle()
+        assertNull(vm.state.value.overlay)
+        assertEquals(10, vm.state.value.versions.size)
+    }
 }

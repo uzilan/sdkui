@@ -222,6 +222,22 @@ class AppViewModel(
         update { copy(overlay = Overlay.CurrentVersions(installed)) }
     }
 
+    fun showCandidateBrowser() {
+        update { copy(overlay = Overlay.CandidateBrowser(candidates)) }
+    }
+
+    fun installLatestCandidate(sdk: Sdk) {
+        scope.launch {
+            runWithProgress("Installing ${sdk.name}", service.install(sdk.name, null)) {
+                service.getCurrentDefaults().onSuccess { defaults ->
+                    update { copy(currentDefaults = defaults) }
+                }
+                if (_state.value.selectedCandidate != null) loadVersions()
+                setStatusMessage("Installed ${sdk.name}")
+            }
+        }
+    }
+
     fun setStatusMessage(message: String) {
         update { copy(statusMessage = message) }
         scope.launch {
