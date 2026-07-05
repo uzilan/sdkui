@@ -2,6 +2,7 @@ package com.sdkui.ui
 
 import com.sdkui.model.AppState
 import com.sdkui.model.Overlay
+import com.sdkui.ui.overlays.CandidateBrowserOverlay
 import com.sdkui.ui.overlays.ConfirmOverlay
 import com.sdkui.ui.overlays.CurrentVersionsOverlay
 import com.sdkui.ui.overlays.HelpOverlay
@@ -173,6 +174,15 @@ class App(
                 if (currentOverlayWindow is CurrentVersionsOverlay) return
                 currentOverlayWindow?.close()
                 currentOverlayWindow = CurrentVersionsOverlay(overlay.defaults) { viewModel.closeOverlay() }.also { gui.addWindow(it) }
+            }
+            is Overlay.CandidateBrowser -> {
+                if (currentOverlayWindow is CandidateBrowserOverlay) return
+                currentOverlayWindow?.close()
+                currentOverlayWindow = CandidateBrowserOverlay(
+                    candidates = overlay.candidates,
+                    onInstall = { viewModel.closeOverlay() },
+                    onDismiss = { viewModel.closeOverlay() }
+                ).also { gui.addWindow(it) }
             }
         }
     }
