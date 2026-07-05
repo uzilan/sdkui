@@ -207,6 +207,18 @@ class AppViewModel(
         update { copy(overlay = Overlay.Help) }
     }
 
+    fun showCurrentVersions() {
+        val candidatesDir = File("$sdkmanRoot/candidates")
+        val installed = candidatesDir.listFiles()
+            ?.filter { it.isDirectory }
+            ?.mapNotNull { dir ->
+                val current = File(dir, "current")
+                if (current.exists()) dir.name to current.canonicalFile.name else null
+            }
+            ?.toMap() ?: emptyMap()
+        update { copy(overlay = Overlay.CurrentVersions(installed)) }
+    }
+
     fun setStatusMessage(message: String) {
         update { copy(statusMessage = message) }
         scope.launch {

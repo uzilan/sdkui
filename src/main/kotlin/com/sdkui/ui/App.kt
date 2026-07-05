@@ -3,6 +3,7 @@ package com.sdkui.ui
 import com.sdkui.model.AppState
 import com.sdkui.model.Overlay
 import com.sdkui.ui.overlays.ConfirmOverlay
+import com.sdkui.ui.overlays.CurrentVersionsOverlay
 import com.sdkui.ui.overlays.HelpOverlay
 import com.sdkui.ui.overlays.ProgressOverlay
 import com.sdkui.viewmodel.AppViewModel
@@ -74,7 +75,7 @@ class App(
         // Bottom: status + key hints
         val bottomPanel = Panel(LinearLayout(Direction.VERTICAL))
         bottomPanel.addComponent(statusBar)
-        bottomPanel.addComponent(Label("  i-install  u-use  x-uninstall  r-refresh  t-themes  h-help  q-quit"))
+        bottomPanel.addComponent(Label("  i-install  u-use  x-uninstall  r-refresh  t-themes  c-current  h-help  q-quit"))
 
         val root = Panel(BorderLayout())
         root.addComponent(topPanel.withBorder(Borders.singleLine()), BorderLayout.Location.TOP)
@@ -155,6 +156,11 @@ class App(
                 currentOverlayWindow?.close()
                 currentOverlayWindow = HelpOverlay { viewModel.closeOverlay() }.also { gui.addWindow(it) }
             }
+            is Overlay.CurrentVersions -> {
+                if (currentOverlayWindow is CurrentVersionsOverlay) return
+                currentOverlayWindow?.close()
+                currentOverlayWindow = CurrentVersionsOverlay(overlay.defaults) { viewModel.closeOverlay() }.also { gui.addWindow(it) }
+            }
         }
     }
 
@@ -166,6 +172,7 @@ class App(
             key.keyType == KeyType.Character && key.character == 'x' -> viewModel.requestUninstallSelected()
             key.keyType == KeyType.Character && key.character == 'r' -> viewModel.refreshVersions()
             key.keyType == KeyType.Character && key.character == 'h' -> viewModel.showHelp()
+            key.keyType == KeyType.Character && key.character == 'c' -> viewModel.showCurrentVersions()
             key.keyType == KeyType.Character && key.character == 't' -> openThemeChooser()
             key.keyType == KeyType.Escape -> viewModel.closeOverlay()
             else -> {}
