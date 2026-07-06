@@ -173,13 +173,24 @@ class App(
             is Overlay.CurrentVersions -> {
                 if (currentOverlayWindow is CurrentVersionsOverlay) return
                 currentOverlayWindow?.close()
-                currentOverlayWindow = CurrentVersionsOverlay(overlay.defaults) { viewModel.closeOverlay() }.also { gui.addWindow(it) }
+                currentOverlayWindow = CurrentVersionsOverlay(
+                    defaults = overlay.defaults,
+                    latestVersions = overlay.latestVersions,
+                    onSelect = { name ->
+                        viewModel.closeOverlay()
+                        val sdk = viewModel.state.value.candidates.firstOrNull { it.name == name } ?: return@CurrentVersionsOverlay
+                        val preferredVendor = if (name == "java") overlay.defaults["java"]?.substringAfterLast("-") else null
+                        viewModel.selectCandidate(sdk, preferredVendor)
+                    },
+                    onDismiss = { viewModel.closeOverlay() }
+                ).also { gui.addWindow(it) }
             }
             is Overlay.CandidateBrowser -> {
                 if (currentOverlayWindow is CandidateBrowserOverlay) return
                 currentOverlayWindow?.close()
                 currentOverlayWindow = CandidateBrowserOverlay(
                     candidates = overlay.candidates,
+                    installedVersions = overlay.installedVersions,
                     onInstall = { sdk -> viewModel.closeOverlay(); viewModel.installLatestCandidate(sdk) },
                     onDismiss = { viewModel.closeOverlay() }
                 ).also { gui.addWindow(it) }

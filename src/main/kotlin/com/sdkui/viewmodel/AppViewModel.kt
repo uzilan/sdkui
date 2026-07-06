@@ -54,9 +54,9 @@ class AppViewModel(
         }
     }
 
-    fun selectCandidate(sdk: Sdk) {
+    fun selectCandidate(sdk: Sdk, preferredVendor: String? = null) {
         update { copy(selectedCandidate = sdk, selectedVendor = null, versions = emptyList(), selectedVersion = null) }
-        loadVersions()
+        loadVersions(preferredVendor)
     }
 
     fun selectVendor(vendor: String) {
@@ -68,7 +68,7 @@ class AppViewModel(
         update { copy(selectedVersion = version) }
     }
 
-    private fun loadVersions() {
+    private fun loadVersions(preferredVendor: String? = null) {
         val candidate = _state.value.selectedCandidate ?: return
         val vendor = _state.value.selectedVendor
         scope.launch {
@@ -86,7 +86,11 @@ class AppViewModel(
                 }
                 val allVersions = allResult.getOrThrow()
                 newAvailableVendors = allVersions.mapNotNull { it.vendor }.distinct()
-                effectiveVendor = newAvailableVendors.firstOrNull()
+                effectiveVendor = if (preferredVendor != null)
+                    newAvailableVendors.firstOrNull { it.equals(preferredVendor, ignoreCase = true) }
+                        ?: allVersions.firstOrNull { it.identifier.endsWith("-$preferredVendor", ignoreCase = true) }?.vendor
+                        ?: newAvailableVendors.firstOrNull()
+                else newAvailableVendors.firstOrNull()
             }
 
             service.listVersions(candidate.name, effectiveVendor).fold(
@@ -113,6 +117,7 @@ class AppViewModel(
                             loading = false,
                             versions = versions,
                             availableVendors = newAvailableVendors ?: availableVendors,
+                            selectedVendor = effectiveVendor ?: selectedVendor,
                             selectedVersion = versions.firstOrNull()
                         )
                     }
@@ -169,6 +174,8 @@ class AppViewModel(
     fun setDefaultSelected() {
         val candidate = _state.value.selectedCandidate ?: return
         val version = _state.value.selectedVersion ?: return
+        if (version.status == VersionStatus.AVAILABLE) { setStatusMessage("Cannot use ${version.identifier} — not installed"); return }
+        if (version.status == VersionStatus.DEFAULT) { setStatusMessage("${version.identifier} is already the default"); return }
         scope.launch {
             service.setDefault(candidate.name, version.identifier).fold(
                 onSuccess = {
@@ -211,19 +218,43 @@ class AppViewModel(
     }
 
     fun showCurrentVersions() {
-        val candidatesDir = File("$sdkmanRoot/candidates")
-        val installed = candidatesDir.listFiles()
-            ?.filter { it.isDirectory }
-            ?.mapNotNull { dir ->
-                val current = File(dir, "current")
-                if (current.exists()) dir.name to current.canonicalFile.name else null
+        scope.launch {
+            val candidatesDir = File("$sdkmanRoot/candidates")
+            val installed = candidatesDir.listFiles()
+                ?.filter { it.isDirectory }
+                ?.mapNotNull { dir ->
+                    val current = File(dir, "current")
+                    if (current.exists()) dir.name to current.canonicalFile.name else null
+                }
+                ?.toMap() ?: emptyMap()
+            val freshCandidates = service.listCandidates().getOrElse { _state.value.candidates }
+            update { copy(candidates = freshCandidates) }
+            val latestVersions = freshCandidates
+                .filter { it.name != "java" }
+                .associate { it.name to it.version }
+                .toMutableMap()
+            val javaInstalled = installed["java"]
+            if (javaInstalled != null) {
+                val vendorSuffix = javaInstalled.substringAfterLast("-")
+                service.listVersions("java", null).onSuccess { versions ->
+                    val latest = versions
+                        .filter { it.identifier.endsWith("-$vendorSuffix", ignoreCase = true) }
+                        .sortedWith { a, b ->
+                            val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
+                            val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
+                            (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
+                                (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
+                            } ?: 0
+                        }.firstOrNull()
+                    if (latest != null) latestVersions["java"] = latest.identifier
+                }
             }
-            ?.toMap() ?: emptyMap()
-        update { copy(overlay = Overlay.CurrentVersions(installed)) }
+            update { copy(overlay = Overlay.CurrentVersions(installed, latestVersions)) }
+        }
     }
 
     fun showCandidateBrowser() {
-        update { copy(overlay = Overlay.CandidateBrowser(candidates)) }
+        update { copy(overlay = Overlay.CandidateBrowser(candidates, currentDefaults)) }
     }
 
     fun installLatestCandidate(sdk: Sdk) {
