@@ -3,6 +3,7 @@ package com.sdkui.ui.overlays
 import com.sdkui.model.Sdk
 import com.googlecode.lanterna.gui2.ActionListBox
 import com.googlecode.lanterna.gui2.BasicWindow
+import com.googlecode.lanterna.gui2.Interactable
 import com.googlecode.lanterna.gui2.BorderLayout
 import com.googlecode.lanterna.gui2.Borders
 import com.googlecode.lanterna.gui2.Label
@@ -25,7 +26,25 @@ class CandidateBrowserOverlay(
     init {
         val layout = Panel(BorderLayout())
 
-        val listBox = ActionListBox()
+        val listBox = object : ActionListBox() {
+            override fun handleKeyStroke(keyStroke: KeyStroke): Interactable.Result {
+                if (keyStroke.keyType == KeyType.Character && keyStroke.character == 'i') {
+                    if (selectedSdk.name.isNotBlank()) onInstall(selectedSdk)
+                    return Interactable.Result.HANDLED
+                }
+                val prevIndex = getSelectedIndex()
+                val result = super.handleKeyStroke(keyStroke)
+                val newIndex = getSelectedIndex()
+                if (newIndex != prevIndex) {
+                    val sdk = candidates.getOrNull(newIndex)
+                    if (sdk != null) {
+                        selectedSdk = sdk
+                        detailLabel.setText(detailText(sdk))
+                    }
+                }
+                return result
+            }
+        }
         candidates.forEach { sdk ->
             listBox.addItem(sdk.name) {
                 selectedSdk = sdk
@@ -54,16 +73,10 @@ class CandidateBrowserOverlay(
                 keyStroke: KeyStroke,
                 hasBeenHandled: AtomicBoolean
             ) {
-                when {
-                    keyStroke.keyType == KeyType.Escape -> {
-                        close()
-                        onDismiss()
-                        hasBeenHandled.set(true)
-                    }
-                    keyStroke.keyType == KeyType.Character && keyStroke.character == 'i' -> {
-                        onInstall(selectedSdk)
-                        hasBeenHandled.set(true)
-                    }
+                if (keyStroke.keyType == KeyType.Escape) {
+                    close()
+                    onDismiss()
+                    hasBeenHandled.set(true)
                 }
             }
         })
