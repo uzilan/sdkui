@@ -31,10 +31,25 @@ class HelpOverlay(onDismiss: () -> Unit) : BasicWindow("Help") {
   i        Install selected version
   u        Set selected as default (sdk use)
   x        Uninstall selected version
+  b        Browse all candidates
+  c        Show current installed versions
   r        Refresh versions
   t        Choose theme
   h        Show this help
   q        Quit
+
+  Browse Overlay (b)
+  ──────────────────
+  ↑ / ↓    Navigate candidates
+  i        Install latest version
+  type     Filter candidates
+  Esc      Close
+
+  Current Versions Overlay (c)
+  ────────────────────────────
+  ↑ / ↓    Navigate
+  Enter    Go to candidate
+  Esc      Close
 
   Status Colors
   ─────────────

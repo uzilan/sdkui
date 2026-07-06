@@ -27,6 +27,8 @@ import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
 import com.googlecode.lanterna.screen.Screen
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.time.LocalDateTime
@@ -50,6 +52,9 @@ class App(
     private var currentThemeName = "businessmachine"
     private var currentOverlayWindow: BasicWindow? = null
     private var vendorVisible = true
+    private var spinnerJob: Job? = null
+    private var spinnerIndex = 0
+    private val spinnerFrames = arrayOf("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
     private fun log(msg: String) {
         logFile.appendText("[${LocalDateTime.now()}] $msg\n")
@@ -128,7 +133,24 @@ class App(
         vendorDropdown.applyState(state)
         versionListPanel.applyState(state)
         detailPanel.applyState(state)
-        statusBar.setText(if (state.loading) "Loading..." else state.statusMessage)
+        if (state.loading) {
+            if (spinnerJob == null) {
+                spinnerJob = scope.launch {
+                    while (true) {
+                        synchronized(gui) {
+                            statusBar.setText("${spinnerFrames[spinnerIndex % spinnerFrames.size]} Loading...")
+                            spinnerIndex++
+                            try { gui.updateScreen() } catch (_: Exception) {}
+                        }
+                        delay(100)
+                    }
+                }
+            }
+        } else {
+            spinnerJob?.cancel()
+            spinnerJob = null
+            statusBar.setText(state.statusMessage)
+        }
         val isJava = state.selectedCandidate?.name == "java"
         if (isJava != vendorVisible) {
             vendorVisible = isJava

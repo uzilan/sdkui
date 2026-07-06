@@ -219,6 +219,7 @@ class AppViewModel(
 
     fun showCurrentVersions() {
         scope.launch {
+            update { copy(loading = true) }
             val candidatesDir = File("$sdkmanRoot/candidates")
             val installed = candidatesDir.listFiles()
                 ?.filter { it.isDirectory }
@@ -249,7 +250,7 @@ class AppViewModel(
                     if (latest != null) latestVersions["java"] = latest.identifier
                 }
             }
-            update { copy(overlay = Overlay.CurrentVersions(installed, latestVersions)) }
+            update { copy(loading = false, overlay = Overlay.CurrentVersions(installed, latestVersions)) }
         }
     }
 
