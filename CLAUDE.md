@@ -20,15 +20,15 @@ Unidirectional data flow: `SdkmanService → AppViewModel → AppState → App (
 
 **`SdkmanService` / `SdkmanServiceImpl`** — wraps `sdk` CLI via bash subprocess (`source ~/.sdkman/bin/sdkman-init.sh && sdk …`). All parsing lives in static companion methods on `SdkmanServiceImpl`. `install` and `uninstall` return `Flow<String>` for streaming output; other methods are `suspend`.
 
-**`AppViewModel`** — single `MutableStateFlow<AppState>` mutated via `update { copy(…) }`. All business logic lives here. Overlays are part of state (`AppState.overlay: Overlay?`). Installed versions are detected from the filesystem (`~/.sdkman/candidates/<name>/`) not from the service.
+**`AppViewModel`** — single `MutableStateFlow<AppState>` mutated via `update { copy(…) }`. All business logic lives here. Overlays are part of state (`AppState.overlay: Overlay?`). Installed versions are detected from the filesystem (`~/.sdkman/candidates/<name>/`) not from the service. `setDefaultSelected()` guards against non-installed versions. `selectCandidate(sdk, preferredVendor?)` accepts an optional vendor hint; for java this is resolved by matching identifier suffixes (e.g. `"tem"` → `"Temurin"`) against the full vendor list. `showCurrentVersions()` fetches fresh candidates on every call and async-loads java versions filtered by identifier suffix to find vendor-accurate latest.
 
 **`AppState`** — plain data class, entire UI state. `overlay: Overlay?` drives which overlay window is shown; `null` means no overlay.
 
-**`Overlay`** — sealed class with variants: `Progress(title, lines)`, `Confirm(message, onConfirm)`, `Help`, `CurrentVersions(defaults)`.
+**`Overlay`** — sealed class with variants: `Progress(title, lines)`, `Confirm(message, onConfirm)`, `Help`, `CurrentVersions(defaults, latestVersions)`, `CandidateBrowser(candidates, installedVersions)`.
 
 **`App`** — Lanterna `MultiWindowTextGUI` wired to the state flow. `renderOverlay()` diffs `currentOverlayWindow` type against `state.overlay` type to avoid re-creating unchanged overlays. Key handling in `handleKey()` dispatches to ViewModel methods.
 
-**Overlays** (`ui/overlays/`) — each is a `BasicWindow` subclass. `ProgressOverlay` is append-only (lines stream in). `HelpOverlay` and `CurrentVersionsOverlay` dismiss on any keypress. `ConfirmOverlay` has yes/no.
+**Overlays** (`ui/overlays/`) — each is a `BasicWindow` subclass. `ProgressOverlay` is append-only (lines stream in). `HelpOverlay` dismisses on any keypress. `ConfirmOverlay` has yes/no. `CurrentVersionsOverlay` is a navigable `ActionListBox`; Enter closes and selects that candidate (also selects vendor for java). `CandidateBrowserOverlay` shows all candidates with description panel; `i` installs latest.
 
 **Dropdowns** (`CandidateDropdown`, `VendorDropdown`) — `ComboBox<String>` subclasses with custom renderers. Both use reflection to replace Lanterna's internal `ActionListBox` with a filtering one, since `ComboBox.PopupWindow` is private with no extension point.
 

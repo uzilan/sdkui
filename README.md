@@ -11,7 +11,9 @@ A terminal UI for managing SDKs with [SDKMAN!](https://sdkman.io) — browse, in
 - Install, uninstall, and set default versions
 - Java vendor filtering (Temurin, Corretto, Zulu, etc.)
 - Live progress log for install/uninstall operations
-- View current installed versions (`c`)
+- View current installed versions with newer-version indicators (`c`)
+- Navigate from current versions overlay directly to a candidate
+- Browse and install latest candidate versions (`b`)
 - Multiple Lanterna themes (switch with `t`)
 - Built-in help system (`h`)
 
@@ -33,9 +35,10 @@ java -jar build/libs/sdkui.jar
 |-----|--------|
 | `↑` / `↓` | Navigate versions |
 | `i` | Install selected version |
-| `u` | Set selected as default (`sdk use`) |
+| `u` | Set selected as default (`sdk use`) — installed versions only |
 | `x` | Uninstall selected version |
-| `c` | Show current installed versions |
+| `b` | Browse all candidates (install latest) |
+| `c` | Show current installed versions / navigate to candidate |
 | `r` | Refresh versions |
 | `t` | Open theme chooser |
 | `h` | Show help |
@@ -47,3 +50,7 @@ java -jar build/libs/sdkui.jar
 - `*` — current default
 - `+` — installed (not default)
 - plain — available (not installed)
+
+## License
+
+[MIT](LICENSE)
