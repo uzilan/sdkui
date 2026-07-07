@@ -44,13 +44,15 @@ class AppViewModel(
                 setStatusMessage(defaults.exceptionOrNull()?.message ?: "Error loading defaults")
                 return@launch
             }
+            val candidateList = candidates.getOrThrow()
             update {
                 copy(
                     loading = false,
-                    candidates = candidates.getOrThrow(),
+                    candidates = candidateList,
                     currentDefaults = defaults.getOrThrow()
                 )
             }
+            candidateList.firstOrNull()?.let { selectCandidate(it) }
         }
     }
 

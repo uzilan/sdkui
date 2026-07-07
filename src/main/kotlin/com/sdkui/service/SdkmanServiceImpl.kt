@@ -94,6 +94,7 @@ class SdkmanServiceImpl : SdkmanService {
                             .dropWhile { it.isBlank() }
                             .dropLastWhile { it.isBlank() }
                             .joinToString("\n")
+                            .replace(Regex("""(?<!\n)\n(?!\n)"""), " ")
                     } else ""
                     result.add(Sdk(name = name, version = version, description = description))
                 }
