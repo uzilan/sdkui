@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workflow
+
+Run `./gradlew installDist` after every code change.
+
 ## Commands
 
 ```bash

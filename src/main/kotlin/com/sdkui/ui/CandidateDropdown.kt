@@ -93,7 +93,7 @@ class CandidateDropdown : ComboBox<String>() {
                 currentPopup = null
             }
         }
-        filterListBox.preferredSize = size.withRows(filtered.size.coerceAtLeast(1))
+        filterListBox.preferredSize = size.withRows(filtered.size.coerceIn(1, MAX_VISIBLE_ROWS))
         filterListBox.setListItemRenderer(highlightRenderer)
     }
 
@@ -110,6 +110,8 @@ class CandidateDropdown : ComboBox<String>() {
     }
 
     companion object {
+        private const val MAX_VISIBLE_ROWS = 15
+
         private val comboBoxRenderer = object : ComboBox.ComboBoxRenderer<String>() {
             override fun getCursorLocation(comboBox: ComboBox<String>): TerminalPosition? = null
             override fun getPreferredSize(comboBox: ComboBox<String>): TerminalSize {
