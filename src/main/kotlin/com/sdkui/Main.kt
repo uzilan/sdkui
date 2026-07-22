@@ -33,6 +33,7 @@ fun main() =
         val viewModel = AppViewModel(SdkmanServiceImpl(), scope)
 
         viewModel.loadCandidatesAndDefaults()
+        viewModel.checkForSdkmanUpdate()
 
         try {
             App(gui, screen, viewModel, scope).run()

@@ -44,6 +44,7 @@ class App(
     private val versionListPanel = VersionListPanel()
     private val detailPanel = DetailPanel()
     private val statusBar = StatusBar()
+    private val keyHints = Label(DEFAULT_KEY_HINTS)
     private val candidateDropdown = CandidateDropdown()
     private val vendorDropdown = VendorDropdown()
     private val vendorLabel = Label("   Vendor: ")
@@ -83,7 +84,7 @@ class App(
         // Bottom: status + key hints
         val bottomPanel = Panel(LinearLayout(Direction.VERTICAL))
         bottomPanel.addComponent(statusBar)
-        bottomPanel.addComponent(Label("  i-install  u-use  x-uninstall  r-refresh  b-browse  t-themes  c-current  h-help  q-quit"))
+        bottomPanel.addComponent(keyHints)
 
         val root = Panel(BorderLayout())
         root.addComponent(topPanel.withBorder(Borders.singleLine()), BorderLayout.Location.TOP)
@@ -133,6 +134,7 @@ class App(
         vendorDropdown.applyState(state)
         versionListPanel.applyState(state)
         detailPanel.applyState(state)
+        keyHints.setText(if (state.sdkmanUpdateStatus?.updateAvailable == true) UPDATE_KEY_HINTS else DEFAULT_KEY_HINTS)
         if (state.loading) {
             if (spinnerJob == null) {
                 spinnerJob = scope.launch {
@@ -149,7 +151,7 @@ class App(
         } else {
             spinnerJob?.cancel()
             spinnerJob = null
-            statusBar.setText(state.statusMessage)
+            statusBar.setText(state.statusMessage.ifBlank { state.updateMessage })
         }
         val isJava = state.selectedCandidate?.name == "java"
         if (isJava != vendorVisible) {
@@ -225,6 +227,8 @@ class App(
             key.keyType == KeyType.Character && key.character == 'q' -> window.close()
             key.keyType == KeyType.Character && key.character == 'i' -> viewModel.installSelected()
             key.keyType == KeyType.Character && key.character == 'u' -> viewModel.setDefaultSelected()
+            key.keyType == KeyType.Character && key.character == 's' &&
+                viewModel.state.value.sdkmanUpdateStatus?.updateAvailable == true -> viewModel.requestSdkmanUpdate()
             key.keyType == KeyType.Character && key.character == 'x' -> viewModel.requestUninstallSelected()
             key.keyType == KeyType.Character && key.character == 'r' -> viewModel.refreshVersions()
             key.keyType == KeyType.Character && key.character == 'h' -> viewModel.showHelp()
@@ -279,5 +283,12 @@ class App(
         })
         win.component = listBox
         gui.addWindow(win)
+    }
+
+    companion object {
+        private const val DEFAULT_KEY_HINTS =
+            "  i-install  u-use  x-uninstall  r-refresh  b-browse  t-themes  c-current  h-help  q-quit"
+        private const val UPDATE_KEY_HINTS =
+            "  i-install  u-use  s-self-update  x-uninstall  r-refresh  b-browse  t-themes  c-current  h-help  q-quit"
     }
 }

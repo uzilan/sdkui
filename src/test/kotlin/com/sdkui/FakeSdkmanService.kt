@@ -1,6 +1,7 @@
 package com.sdkui
 
 import com.sdkui.model.Sdk
+import com.sdkui.model.SdkmanUpdateStatus
 import com.sdkui.model.Version
 import com.sdkui.model.VersionStatus
 import com.sdkui.service.SdkmanService
@@ -10,21 +11,26 @@ import kotlinx.coroutines.flow.flowOf
 class FakeSdkmanService : SdkmanService {
     var candidatesResult: Result<List<Sdk>> = Result.success(CANDIDATES)
     var defaultsResult: Result<Map<String, String>> = Result.success(DEFAULTS)
+    var updateStatusResult: Result<SdkmanUpdateStatus> = Result.success(UP_TO_DATE)
     var versionsResult: Result<List<Version>> = Result.success(JAVA_VERSIONS)
     var setDefaultResult: Result<Unit> = Result.success(Unit)
+    var selfUpdateLines: List<String> = listOf("Updating SDKMAN...", "Done!")
     var installLines: List<String> = listOf("Downloading...", "Installing...", "Done!")
     var uninstallLines: List<String> = listOf("Uninstalling...", "Done!")
 
     override suspend fun listCandidates() = candidatesResult
     override suspend fun getCurrentDefaults() = defaultsResult
+    override suspend fun checkForUpdate() = updateStatusResult
     override suspend fun listVersions(candidate: String, vendor: String?) = versionsResult
     override suspend fun setDefault(candidate: String, identifier: String) = setDefaultResult
+    override fun selfUpdate(): Flow<String> = flowOf(*selfUpdateLines.toTypedArray())
     override fun install(candidate: String, identifier: String?): Flow<String> =
         flowOf(*installLines.toTypedArray())
     override fun uninstall(candidate: String, identifier: String): Flow<String> =
         flowOf(*uninstallLines.toTypedArray())
 
     companion object {
+        val UP_TO_DATE = SdkmanUpdateStatus("5.23.0", "5.23.0", "0.7.34", "0.7.34")
         val CANDIDATES = listOf(
             Sdk("java", "21.0.11-tem", "Java Platform, Standard Edition"),
             Sdk("kotlin", "2.1.20", "The Kotlin Programming Language"),

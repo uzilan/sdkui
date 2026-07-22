@@ -29,6 +29,22 @@ class AppViewModel(
 
     private fun update(block: AppState.() -> AppState) = _state.update(block)
 
+    fun checkForSdkmanUpdate() {
+        scope.launch {
+            service.checkForUpdate().onSuccess { status ->
+                update {
+                    copy(
+                        updateMessage = if (status.updateAvailable) {
+                            "SDKMAN update available: script ${status.localScript} → ${status.remoteScript}, " +
+                                "native ${status.localNative} → ${status.remoteNative} — press s to update"
+                        } else "",
+                        sdkmanUpdateStatus = status
+                    )
+                }
+            }
+        }
+    }
+
     fun loadCandidatesAndDefaults() {
         scope.launch {
             update { copy(loading = true) }
@@ -156,6 +172,33 @@ class AppViewModel(
         } finally {
             delay(2_000)
             closeOverlay()
+        }
+    }
+
+    fun requestSdkmanUpdate() {
+        val status = _state.value.sdkmanUpdateStatus
+        if (status == null) {
+            setStatusMessage("Unable to check for SDKMAN updates")
+            return
+        }
+        if (!status.updateAvailable) {
+            setStatusMessage("SDKMAN is up to date")
+            return
+        }
+        val message = "Update SDKMAN?\n\n" +
+            "Script: ${status.localScript} → ${status.remoteScript}\n" +
+            "Native: ${status.localNative} → ${status.remoteNative}"
+        update {
+            copy(overlay = Overlay.Confirm(message) {
+                scope.launch {
+                    closeOverlay()
+                    runWithProgress("Updating SDKMAN", service.selfUpdate()) {
+                        checkForSdkmanUpdate()
+                        loadCandidatesAndDefaults()
+                        setStatusMessage("SDKMAN updated successfully")
+                    }
+                }
+            })
         }
     }
 

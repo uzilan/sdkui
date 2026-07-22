@@ -30,6 +30,7 @@ class HelpOverlay(onDismiss: () -> Unit) : BasicWindow("Help") {
   ↑ / ↓    Navigate versions
   i        Install selected version
   u        Set selected as default (sdk use)
+  s        Update SDKMAN (when available)
   x        Uninstall selected version
   b        Browse all candidates
   c        Show current installed versions

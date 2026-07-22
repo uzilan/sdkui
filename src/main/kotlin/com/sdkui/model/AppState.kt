@@ -10,5 +10,7 @@ data class AppState(
     val selectedVersion: Version? = null,
     val loading: Boolean = false,
     val statusMessage: String = "",
+    val updateMessage: String = "",
+    val sdkmanUpdateStatus: SdkmanUpdateStatus? = null,
     val overlay: Overlay? = null
 )

@@ -1,16 +1,30 @@
 package com.sdkui.service
 
 import com.sdkui.model.Sdk
+import com.sdkui.model.SdkmanUpdateStatus
 import com.sdkui.model.Version
 import com.sdkui.model.VersionStatus
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
-class SdkmanServiceImpl : SdkmanService {
-    private val sdkmanInit = "${System.getProperty("user.home")}/.sdkman/bin/sdkman-init.sh"
+class SdkmanServiceImpl(
+    private val sdkmanRoot: Path = Path.of(System.getProperty("user.home"), ".sdkman"),
+    private val apiBaseUrl: String = System.getenv("SDKMAN_CANDIDATES_API") ?: "https://api.sdkman.io/2",
+    private val httpClient: HttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(3))
+        .build()
+) : SdkmanService {
+    private val sdkmanInit = sdkmanRoot.resolve("bin/sdkman-init.sh")
 
     internal fun runSdk(vararg args: String): String {
         val cmd = "source $sdkmanInit && sdk ${args.joinToString(" ") { "'$it'" }}"
@@ -30,6 +44,29 @@ class SdkmanServiceImpl : SdkmanService {
         runCatching { parseDefaults(runSdk("current")) }
     }
 
+    override suspend fun checkForUpdate(): Result<SdkmanUpdateStatus> = withContext(Dispatchers.IO) {
+        runCatching {
+            val channel = if (isBetaChannel(Files.readString(sdkmanRoot.resolve("etc/config")))) "beta" else "stable"
+            SdkmanUpdateStatus(
+                localScript = Files.readString(sdkmanRoot.resolve("var/version")).trim(),
+                remoteScript = fetchVersion("script", channel),
+                localNative = Files.readString(sdkmanRoot.resolve("var/version_native")).trim(),
+                remoteNative = fetchVersion("native", channel)
+            )
+        }
+    }
+
+    private fun fetchVersion(component: String, channel: String): String {
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create("${apiBaseUrl.trimEnd('/')}/broker/version/sdkman/$component/$channel"))
+            .timeout(Duration.ofSeconds(5))
+            .GET()
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        check(response.statusCode() in 200..299) { "SDKMAN update check failed (${response.statusCode()})" }
+        return response.body().trim().also { check(it.isNotEmpty()) { "SDKMAN update check returned an empty version" } }
+    }
+
     override suspend fun listVersions(candidate: String, vendor: String?): Result<List<Version>> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -42,6 +79,14 @@ class SdkmanServiceImpl : SdkmanService {
         withContext(Dispatchers.IO) {
             runCatching { runSdk("default", candidate, identifier); Unit }
         }
+
+    override fun selfUpdate(): Flow<String> = flow {
+        val proc = ProcessBuilder("/bin/bash", "-c", "source $sdkmanInit && sdk selfupdate")
+            .redirectErrorStream(true).start()
+        proc.outputStream.close()
+        proc.inputStream.bufferedReader().useLines { it.forEach { line -> emit(line) } }
+        check(proc.waitFor() == 0) { "SDKMAN update failed" }
+    }.flowOn(Dispatchers.IO)
 
     override fun install(candidate: String, identifier: String?): Flow<String> = flow {
         val versionArg = if (identifier != null) " '$identifier'" else ""
@@ -66,6 +111,9 @@ class SdkmanServiceImpl : SdkmanService {
         private val SEPARATOR_RE = Regex("""-{10,}""")
         private val INSTALL_RE = Regex("""^\s*\$\s+sdk install (\w+)\s*$""")
         private val PAREN_VERSION_RE = Regex("""\(([^)]+)\)""")
+        private val BETA_CHANNEL_RE = Regex("""(?m)^\s*sdkman_beta_channel\s*=\s*true\s*$""")
+
+        internal fun isBetaChannel(config: String): Boolean = BETA_CHANNEL_RE.containsMatchIn(config)
 
         fun parseCandidates(raw: String): List<Sdk> {
             val lines = raw.lines()

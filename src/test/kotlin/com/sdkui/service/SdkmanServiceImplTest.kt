@@ -12,6 +12,13 @@ class SdkmanServiceImplTest {
     private val sdkmanInit = File(System.getProperty("user.home"), ".sdkman/bin/sdkman-init.sh")
 
     @Test
+    fun `isBetaChannel reads an enabled uncommented setting`() {
+        assertTrue(SdkmanServiceImpl.isBetaChannel("sdkman_beta_channel=true"))
+        assertTrue(!SdkmanServiceImpl.isBetaChannel("# sdkman_beta_channel=true"))
+        assertTrue(!SdkmanServiceImpl.isBetaChannel("sdkman_beta_channel=false"))
+    }
+
+    @Test
     fun `parseCandidates extracts name and version from sdk list output`() {
         val raw = """
             ================================================================================

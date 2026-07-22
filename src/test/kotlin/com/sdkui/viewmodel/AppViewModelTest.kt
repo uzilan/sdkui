@@ -2,6 +2,7 @@ package com.sdkui.viewmodel
 
 import com.sdkui.FakeSdkmanService
 import com.sdkui.model.Overlay
+import com.sdkui.model.SdkmanUpdateStatus
 import com.sdkui.model.VersionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -26,6 +27,72 @@ class AppViewModelTest {
             assertNull(selectedCandidate)
             assertFalse(loading)
         }
+    }
+
+    @Test
+    fun `checkForSdkmanUpdate shows available versions`() = runTest {
+        val fake = FakeSdkmanService().apply {
+            updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+        }
+        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.checkForSdkmanUpdate()
+        advanceUntilIdle()
+        assertEquals(
+            "SDKMAN update available: script 5.22.0 → 5.23.0, native 0.7.33 → 0.7.34 — press s to update",
+            vm.state.value.updateMessage
+        )
+    }
+
+    @Test
+    fun `checkForSdkmanUpdate stays silent when versions match or check fails`() = runTest {
+        val fake = FakeSdkmanService()
+        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.checkForSdkmanUpdate()
+        advanceUntilIdle()
+        assertEquals("", vm.state.value.updateMessage)
+
+        fake.updateStatusResult = Result.failure(RuntimeException("offline"))
+        vm.checkForSdkmanUpdate()
+        advanceUntilIdle()
+        assertEquals("", vm.state.value.updateMessage)
+    }
+
+    @Test
+    fun `requestSdkmanUpdate confirms and runs update`() = runTest {
+        val fake = FakeSdkmanService().apply {
+            updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+        }
+        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.checkForSdkmanUpdate()
+        advanceUntilIdle()
+
+        vm.requestSdkmanUpdate()
+        val confirm = vm.state.value.overlay as Overlay.Confirm
+        assertTrue(confirm.message.contains("5.22.0 → 5.23.0"))
+
+        fake.updateStatusResult = Result.success(FakeSdkmanService.UP_TO_DATE)
+        confirm.onConfirm()
+        advanceUntilIdle()
+        assertNull(vm.state.value.overlay)
+        assertEquals("", vm.state.value.updateMessage)
+    }
+
+    @Test
+    fun `requestSdkmanUpdate reports when update check has not completed`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.requestSdkmanUpdate()
+        assertEquals("Unable to check for SDKMAN updates", vm.state.value.statusMessage)
+        assertNull(vm.state.value.overlay)
+    }
+
+    @Test
+    fun `requestSdkmanUpdate reports when SDKMAN is up to date`() = runTest {
+        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        vm.checkForSdkmanUpdate()
+        advanceUntilIdle()
+        vm.requestSdkmanUpdate()
+        assertEquals("SDKMAN is up to date", vm.state.value.statusMessage)
+        assertNull(vm.state.value.overlay)
     }
 
     @Test
@@ -160,7 +227,9 @@ class AppViewModelTest {
 
     @Test
     fun `setDefaultSelected updates currentDefaults and reloads versions`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+        val root = Files.createTempDirectory("sdkui-test").toFile()
+        File(root, "candidates/java/26.0.1-tem").mkdirs()
+        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
         vm.loadCandidatesAndDefaults()
         vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
         advanceUntilIdle()
