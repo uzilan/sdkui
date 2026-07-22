@@ -20,7 +20,8 @@ class SdkmanServiceImplTest {
 
     @Test
     fun `parseCandidates extracts name and version from sdk list output`() {
-        val raw = """
+        val raw =
+            """
             ================================================================================
             Available Candidates
             ================================================================================
@@ -33,7 +34,7 @@ class SdkmanServiceImplTest {
              Kotlin (2.1.20)                                               (k) kotlin
 
              $ sdk install kotlin
-        """.trimIndent()
+            """.trimIndent()
         val result = SdkmanServiceImpl.parseCandidates(raw)
         assertEquals(2, result.size)
         assertEquals("java", result[0].name)
@@ -44,12 +45,13 @@ class SdkmanServiceImplTest {
 
     @Test
     fun `parseDefaults extracts candidate-to-identifier map`() {
-        val raw = """
+        val raw =
+            """
             Current versions in use:
             java 21.0.11-tem
             kotlin 2.1.20
             gradle 8.13
-        """.trimIndent()
+            """.trimIndent()
         val result = SdkmanServiceImpl.parseDefaults(raw)
         assertEquals(mapOf("java" to "21.0.11-tem", "kotlin" to "2.1.20", "gradle" to "8.13"), result)
     }
@@ -62,7 +64,8 @@ class SdkmanServiceImplTest {
 
     @Test
     fun `parseJavaVersions extracts vendor, version, and identifier`() {
-        val raw = """
+        val raw =
+            """
             ================================================================================
             Available Java Versions for macOS ARM 64bit
             ================================================================================
@@ -72,7 +75,7 @@ class SdkmanServiceImplTest {
              Temurin       |     | 17.0.15      | tem     | installed  | 17.0.15-tem
              Corretto      |     | 21.0.11      | amzn    |            | 21.0.11-amzn
                            |     |              |         |            |
-        """.trimIndent()
+            """.trimIndent()
         val all = SdkmanServiceImpl.parseJavaVersions(raw, vendor = null)
         assertEquals(3, all.size)
         assertEquals("Temurin", all[0].vendor)
@@ -86,13 +89,14 @@ class SdkmanServiceImplTest {
 
     @Test
     fun `parseGenericVersions extracts version tokens`() {
-        val raw = """
+        val raw =
+            """
             ================================================================================
             Available Kotlin Versions
             ================================================================================
                  2.1.20             2.0.21             2.0.0             1.9.25
                  1.9.24             1.9.23
-        """.trimIndent()
+            """.trimIndent()
         val result = SdkmanServiceImpl.parseGenericVersions(raw)
         assertEquals(6, result.size)
         assertEquals("2.1.20", result[0].number)
@@ -102,7 +106,8 @@ class SdkmanServiceImplTest {
 
     @Test
     fun `parseCandidates extracts description from new format`() {
-        val raw = """
+        val raw =
+            """
             --------------------------------------------------------------------------------
             Apache Ant (1.10.14)
 
@@ -118,7 +123,7 @@ class SdkmanServiceImplTest {
              $ sdk install kotlin
 
             --------------------------------------------------------------------------------
-        """.trimIndent()
+            """.trimIndent()
         val result = SdkmanServiceImpl.parseCandidates(raw)
         assertEquals(2, result.size)
         assertEquals("ant", result[0].name)
@@ -129,20 +134,22 @@ class SdkmanServiceImplTest {
     }
 
     @Test
-    fun `integration - listCandidates returns non-empty list`() = runTest {
-        Assumptions.assumeTrue(sdkmanInit.exists(), "SDKMAN not installed — skipping integration test")
-        val service = SdkmanServiceImpl()
-        val result = service.listCandidates()
-        assertTrue(result.isSuccess, "listCandidates failed: ${result.exceptionOrNull()?.message}")
-        assertTrue(result.getOrThrow().isNotEmpty())
-        assertTrue(result.getOrThrow().any { it.name == "java" })
-    }
+    fun `integration - listCandidates returns non-empty list`() =
+        runTest {
+            Assumptions.assumeTrue(sdkmanInit.exists(), "SDKMAN not installed — skipping integration test")
+            val service = SdkmanServiceImpl()
+            val result = service.listCandidates()
+            assertTrue(result.isSuccess, "listCandidates failed: ${result.exceptionOrNull()?.message}")
+            assertTrue(result.getOrThrow().isNotEmpty())
+            assertTrue(result.getOrThrow().any { it.name == "java" })
+        }
 
     @Test
-    fun `integration - getCurrentDefaults returns map`() = runTest {
-        Assumptions.assumeTrue(sdkmanInit.exists(), "SDKMAN not installed — skipping integration test")
-        val service = SdkmanServiceImpl()
-        val result = service.getCurrentDefaults()
-        assertTrue(result.isSuccess, "getCurrentDefaults failed: ${result.exceptionOrNull()?.message}")
-    }
+    fun `integration - getCurrentDefaults returns map`() =
+        runTest {
+            Assumptions.assumeTrue(sdkmanInit.exists(), "SDKMAN not installed — skipping integration test")
+            val service = SdkmanServiceImpl()
+            val result = service.getCurrentDefaults()
+            assertTrue(result.isSuccess, "getCurrentDefaults failed: ${result.exceptionOrNull()?.message}")
+        }
 }

@@ -6,5 +6,5 @@ data class Version(
     val number: String,
     val vendor: String? = null,
     val identifier: String,
-    val status: VersionStatus = VersionStatus.AVAILABLE
+    val status: VersionStatus = VersionStatus.AVAILABLE,
 )

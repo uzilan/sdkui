@@ -12,5 +12,5 @@ data class AppState(
     val statusMessage: String = "",
     val updateMessage: String = "",
     val sdkmanUpdateStatus: SdkmanUpdateStatus? = null,
-    val overlay: Overlay? = null
+    val overlay: Overlay? = null,
 )

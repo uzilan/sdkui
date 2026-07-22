@@ -18,321 +18,351 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppViewModelTest {
-
     @Test
-    fun `initial state is empty`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        with(vm.state.value) {
-            assertEquals(emptyList(), candidates)
-            assertNull(selectedCandidate)
-            assertFalse(loading)
+    fun `initial state is empty`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            with(vm.state.value) {
+                assertEquals(emptyList(), candidates)
+                assertNull(selectedCandidate)
+                assertFalse(loading)
+            }
         }
-    }
 
     @Test
-    fun `checkForSdkmanUpdate shows available versions`() = runTest {
-        val fake = FakeSdkmanService().apply {
-            updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+    fun `checkForSdkmanUpdate shows available versions`() =
+        runTest {
+            val fake =
+                FakeSdkmanService().apply {
+                    updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+                }
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.checkForSdkmanUpdate()
+            advanceUntilIdle()
+            assertEquals(
+                "SDKMAN update available: script 5.22.0 → 5.23.0, native 0.7.33 → 0.7.34 — press s to update",
+                vm.state.value.updateMessage,
+            )
         }
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.checkForSdkmanUpdate()
-        advanceUntilIdle()
-        assertEquals(
-            "SDKMAN update available: script 5.22.0 → 5.23.0, native 0.7.33 → 0.7.34 — press s to update",
-            vm.state.value.updateMessage
-        )
-    }
 
     @Test
-    fun `checkForSdkmanUpdate stays silent when versions match or check fails`() = runTest {
-        val fake = FakeSdkmanService()
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.checkForSdkmanUpdate()
-        advanceUntilIdle()
-        assertEquals("", vm.state.value.updateMessage)
+    fun `checkForSdkmanUpdate stays silent when versions match or check fails`() =
+        runTest {
+            val fake = FakeSdkmanService()
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.checkForSdkmanUpdate()
+            advanceUntilIdle()
+            assertEquals("", vm.state.value.updateMessage)
 
-        fake.updateStatusResult = Result.failure(RuntimeException("offline"))
-        vm.checkForSdkmanUpdate()
-        advanceUntilIdle()
-        assertEquals("", vm.state.value.updateMessage)
-    }
-
-    @Test
-    fun `requestSdkmanUpdate confirms and runs update`() = runTest {
-        val fake = FakeSdkmanService().apply {
-            updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+            fake.updateStatusResult = Result.failure(RuntimeException("offline"))
+            vm.checkForSdkmanUpdate()
+            advanceUntilIdle()
+            assertEquals("", vm.state.value.updateMessage)
         }
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.checkForSdkmanUpdate()
-        advanceUntilIdle()
-
-        vm.requestSdkmanUpdate()
-        val confirm = vm.state.value.overlay as Overlay.Confirm
-        assertTrue(confirm.message.contains("5.22.0 → 5.23.0"))
-
-        fake.updateStatusResult = Result.success(FakeSdkmanService.UP_TO_DATE)
-        confirm.onConfirm()
-        advanceUntilIdle()
-        assertNull(vm.state.value.overlay)
-        assertEquals("", vm.state.value.updateMessage)
-    }
 
     @Test
-    fun `requestSdkmanUpdate reports when update check has not completed`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.requestSdkmanUpdate()
-        assertEquals("Unable to check for SDKMAN updates", vm.state.value.statusMessage)
-        assertNull(vm.state.value.overlay)
-    }
+    fun `requestSdkmanUpdate confirms and runs update`() =
+        runTest {
+            val fake =
+                FakeSdkmanService().apply {
+                    updateStatusResult = Result.success(SdkmanUpdateStatus("5.22.0", "5.23.0", "0.7.33", "0.7.34"))
+                }
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.checkForSdkmanUpdate()
+            advanceUntilIdle()
 
-    @Test
-    fun `requestSdkmanUpdate reports when SDKMAN is up to date`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.checkForSdkmanUpdate()
-        advanceUntilIdle()
-        vm.requestSdkmanUpdate()
-        assertEquals("SDKMAN is up to date", vm.state.value.statusMessage)
-        assertNull(vm.state.value.overlay)
-    }
+            vm.requestSdkmanUpdate()
+            val confirm = vm.state.value.overlay as Overlay.Confirm
+            assertTrue(confirm.message.contains("5.22.0 → 5.23.0"))
 
-    @Test
-    fun `loadCandidatesAndDefaults populates state`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceUntilIdle()
-        with(vm.state.value) {
-            assertEquals(FakeSdkmanService.CANDIDATES, candidates)
-            assertEquals(FakeSdkmanService.DEFAULTS, currentDefaults)
-            assertFalse(loading)
+            fake.updateStatusResult = Result.success(FakeSdkmanService.UP_TO_DATE)
+            confirm.onConfirm()
+            advanceUntilIdle()
+            assertNull(vm.state.value.overlay)
+            assertEquals("", vm.state.value.updateMessage)
         }
-    }
 
     @Test
-    fun `loadCandidatesAndDefaults on failure sets statusMessage`() = runTest {
-        val fake = FakeSdkmanService().apply {
-            candidatesResult = Result.failure(RuntimeException("sdk not found"))
+    fun `requestSdkmanUpdate reports when update check has not completed`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.requestSdkmanUpdate()
+            assertEquals("Unable to check for SDKMAN updates", vm.state.value.statusMessage)
+            assertNull(vm.state.value.overlay)
         }
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
-        assertTrue(vm.state.value.statusMessage.contains("sdk not found"))
-    }
 
     @Test
-    fun `setStatusMessage clears after 3 seconds`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.setStatusMessage("hello")
-        assertEquals("hello", vm.state.value.statusMessage)
-        advanceTimeBy(3_001)
-        assertEquals("", vm.state.value.statusMessage)
-    }
-
-    @Test
-    fun `selectCandidate loads versions and auto-selects first`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceUntilIdle()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        with(vm.state.value) {
-            assertEquals(FakeSdkmanService.CANDIDATES[0], selectedCandidate)
-            assertEquals(10, versions.size)
-            assertEquals(versions[0], selectedVersion)
-            assertFalse(loading)
+    fun `requestSdkmanUpdate reports when SDKMAN is up to date`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.checkForSdkmanUpdate()
+            advanceUntilIdle()
+            vm.requestSdkmanUpdate()
+            assertEquals("SDKMAN is up to date", vm.state.value.statusMessage)
+            assertNull(vm.state.value.overlay)
         }
-    }
 
     @Test
-    fun `loadVersions assigns DEFAULT status from currentDefaults`() = runTest {
-        val root = Files.createTempDirectory("sdkui-test").toFile()
-        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
-        vm.loadCandidatesAndDefaults()   // sets currentDefaults["java"] = "21.0.11-tem"
-        advanceUntilIdle()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        val java21 = vm.state.value.versions.first { it.identifier == "21.0.11-tem" }
-        assertEquals(VersionStatus.DEFAULT, java21.status)
-    }
-
-    @Test
-    fun `loadVersions assigns INSTALLED status from filesystem`() = runTest {
-        val root = Files.createTempDirectory("sdkui-test").toFile()
-        File(root, "candidates/java/25.0.3-tem").mkdirs()
-        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceUntilIdle()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        val java25 = vm.state.value.versions.first { it.identifier == "25.0.3-tem" }
-        assertEquals(VersionStatus.INSTALLED, java25.status)
-    }
-
-    @Test
-    fun `selectVendor filters versions by vendor`() = runTest {
-        val fake = FakeSdkmanService()
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        fake.versionsResult = Result.success(FakeSdkmanService.JAVA_VERSIONS.filter { it.vendor == "Corretto" })
-        vm.selectVendor("Corretto")
-        advanceUntilIdle()
-        assertEquals("Corretto", vm.state.value.selectedVendor)
-        assertTrue(vm.state.value.versions.all { it.vendor == "Corretto" })
-    }
-
-    @Test
-    fun `selectVersion updates selectedVersion`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        val target = vm.state.value.versions[3]
-        vm.selectVersion(target)
-        assertEquals(target, vm.state.value.selectedVersion)
-    }
-
-    @Test
-    fun `loadVersions on error sets statusMessage`() = runTest {
-        val fake = FakeSdkmanService().apply {
-            versionsResult = Result.failure(RuntimeException("parse error"))
+    fun `loadCandidatesAndDefaults populates state`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceUntilIdle()
+            with(vm.state.value) {
+                assertEquals(FakeSdkmanService.CANDIDATES, candidates)
+                assertEquals(FakeSdkmanService.DEFAULTS, currentDefaults)
+                assertFalse(loading)
+            }
         }
-        val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
-        assertTrue(vm.state.value.statusMessage.contains("parse error"))
-    }
 
     @Test
-    fun `installSelected streams progress and refreshes versions`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        vm.installSelected()
-        advanceUntilIdle()
-        // overlay dismissed after install
-        assertNull(vm.state.value.overlay)
-        // versions reloaded
-        assertEquals(10, vm.state.value.versions.size)
-    }
+    fun `loadCandidatesAndDefaults on failure sets statusMessage`() =
+        runTest {
+            val fake =
+                FakeSdkmanService().apply {
+                    candidatesResult = Result.failure(RuntimeException("sdk not found"))
+                }
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
+            assertTrue(vm.state.value.statusMessage.contains("sdk not found"))
+        }
 
     @Test
-    fun `installSelected does nothing when no version selected`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.installSelected()
-        advanceUntilIdle()
-        assertNull(vm.state.value.overlay)
-    }
+    fun `setStatusMessage clears after 3 seconds`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.setStatusMessage("hello")
+            assertEquals("hello", vm.state.value.statusMessage)
+            advanceTimeBy(3_001)
+            assertEquals("", vm.state.value.statusMessage)
+        }
 
     @Test
-    fun `setDefaultSelected updates currentDefaults and reloads versions`() = runTest {
-        val root = Files.createTempDirectory("sdkui-test").toFile()
-        File(root, "candidates/java/26.0.1-tem").mkdirs()
-        val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        val newDefault = vm.state.value.versions.first { it.identifier == "26.0.1-tem" }
-        vm.selectVersion(newDefault)
-        vm.setDefaultSelected()
-        advanceUntilIdle()
-        assertEquals("26.0.1-tem", vm.state.value.currentDefaults["java"])
-        assertEquals(VersionStatus.DEFAULT, vm.state.value.versions.first { it.identifier == "26.0.1-tem" }.status)
-    }
+    fun `selectCandidate loads versions and auto-selects first`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceUntilIdle()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            with(vm.state.value) {
+                assertEquals(FakeSdkmanService.CANDIDATES[0], selectedCandidate)
+                assertEquals(10, versions.size)
+                assertEquals(versions[0], selectedVersion)
+                assertFalse(loading)
+            }
+        }
 
     @Test
-    fun `closeOverlay clears overlay`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.openProgress("test")
-        assertTrue(vm.state.value.overlay is Overlay.Progress)
-        vm.closeOverlay()
-        assertNull(vm.state.value.overlay)
-    }
+    fun `loadVersions assigns DEFAULT status from currentDefaults`() =
+        runTest {
+            val root = Files.createTempDirectory("sdkui-test").toFile()
+            val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
+            vm.loadCandidatesAndDefaults() // sets currentDefaults["java"] = "21.0.11-tem"
+            advanceUntilIdle()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            val java21 = vm.state.value.versions.first { it.identifier == "21.0.11-tem" }
+            assertEquals(VersionStatus.DEFAULT, java21.status)
+        }
 
     @Test
-    fun `requestUninstallSelected shows Confirm overlay`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        vm.requestUninstallSelected()
-        val overlay = vm.state.value.overlay
-        assertTrue(overlay is Overlay.Confirm)
-        assertTrue((overlay as Overlay.Confirm).message.contains("26.0.1-tem"))
-    }
+    fun `loadVersions assigns INSTALLED status from filesystem`() =
+        runTest {
+            val root = Files.createTempDirectory("sdkui-test").toFile()
+            File(root, "candidates/java/25.0.3-tem").mkdirs()
+            val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceUntilIdle()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            val java25 = vm.state.value.versions.first { it.identifier == "25.0.3-tem" }
+            assertEquals(VersionStatus.INSTALLED, java25.status)
+        }
 
     @Test
-    fun `requestUninstallSelected does nothing when no version selected`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.requestUninstallSelected()
-        assertNull(vm.state.value.overlay)
-    }
+    fun `selectVendor filters versions by vendor`() =
+        runTest {
+            val fake = FakeSdkmanService()
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            fake.versionsResult = Result.success(FakeSdkmanService.JAVA_VERSIONS.filter { it.vendor == "Corretto" })
+            vm.selectVendor("Corretto")
+            advanceUntilIdle()
+            assertEquals("Corretto", vm.state.value.selectedVendor)
+            assertTrue(vm.state.value.versions.all { it.vendor == "Corretto" })
+        }
 
     @Test
-    fun `confirm uninstall runs uninstall and refreshes`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        vm.requestUninstallSelected()
-        val confirm = vm.state.value.overlay as Overlay.Confirm
-        confirm.onConfirm()
-        advanceUntilIdle()
-        assertNull(vm.state.value.overlay)
-        assertEquals(10, vm.state.value.versions.size)
-    }
+    fun `selectVersion updates selectedVersion`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            val target = vm.state.value.versions[3]
+            vm.selectVersion(target)
+            assertEquals(target, vm.state.value.selectedVersion)
+        }
 
     @Test
-    fun `refreshVersions reloads defaults and versions`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        vm.refreshVersions()
-        advanceUntilIdle()
-        assertEquals(10, vm.state.value.versions.size)
-        assertFalse(vm.state.value.loading)
-    }
+    fun `loadVersions on error sets statusMessage`() =
+        runTest {
+            val fake =
+                FakeSdkmanService().apply {
+                    versionsResult = Result.failure(RuntimeException("parse error"))
+                }
+            val vm = AppViewModel(fake, this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceTimeBy(1) // run the failure coroutine (no delay), but not the 3s status clear
+            assertTrue(vm.state.value.statusMessage.contains("parse error"))
+        }
 
     @Test
-    fun `showHelp sets Help overlay`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.showHelp()
-        assertTrue(vm.state.value.overlay is Overlay.Help)
-    }
+    fun `installSelected streams progress and refreshes versions`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            vm.installSelected()
+            advanceUntilIdle()
+            // overlay dismissed after install
+            assertNull(vm.state.value.overlay)
+            // versions reloaded
+            assertEquals(10, vm.state.value.versions.size)
+        }
 
     @Test
-    fun `showCandidateBrowser sets CandidateBrowser overlay with loaded candidates`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceUntilIdle()
-        vm.showCandidateBrowser()
-        val overlay = vm.state.value.overlay
-        assertTrue(overlay is Overlay.CandidateBrowser)
-        assertEquals(FakeSdkmanService.CANDIDATES, (overlay as Overlay.CandidateBrowser).candidates)
-    }
+    fun `installSelected does nothing when no version selected`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.installSelected()
+            advanceUntilIdle()
+            assertNull(vm.state.value.overlay)
+        }
 
     @Test
-    fun `installLatestCandidate streams progress and sets status message`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        advanceUntilIdle()
-        vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[2]) // maven, no selectedCandidate
-        advanceTimeBy(2_001) // past the 2s overlay delay, but before the 3s status-clear
-        assertNull(vm.state.value.overlay)
-        assertEquals("Installed maven", vm.state.value.statusMessage)
-    }
+    fun `setDefaultSelected updates currentDefaults and reloads versions`() =
+        runTest {
+            val root = Files.createTempDirectory("sdkui-test").toFile()
+            File(root, "candidates/java/26.0.1-tem").mkdirs()
+            val vm = AppViewModel(FakeSdkmanService(), this, root.absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            val newDefault = vm.state.value.versions.first { it.identifier == "26.0.1-tem" }
+            vm.selectVersion(newDefault)
+            vm.setDefaultSelected()
+            advanceUntilIdle()
+            assertEquals("26.0.1-tem", vm.state.value.currentDefaults["java"])
+            assertEquals(VersionStatus.DEFAULT, vm.state.value.versions.first { it.identifier == "26.0.1-tem" }.status)
+        }
 
     @Test
-    fun `installLatestCandidate reloads versions when a candidate is selected`() = runTest {
-        val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
-        vm.loadCandidatesAndDefaults()
-        vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[0])
-        advanceUntilIdle()
-        assertNull(vm.state.value.overlay)
-        assertEquals(10, vm.state.value.versions.size)
-    }
+    fun `closeOverlay clears overlay`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.openProgress("test")
+            assertTrue(vm.state.value.overlay is Overlay.Progress)
+            vm.closeOverlay()
+            assertNull(vm.state.value.overlay)
+        }
+
+    @Test
+    fun `requestUninstallSelected shows Confirm overlay`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            vm.requestUninstallSelected()
+            val overlay = vm.state.value.overlay
+            assertTrue(overlay is Overlay.Confirm)
+            assertTrue((overlay as Overlay.Confirm).message.contains("26.0.1-tem"))
+        }
+
+    @Test
+    fun `requestUninstallSelected does nothing when no version selected`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.requestUninstallSelected()
+            assertNull(vm.state.value.overlay)
+        }
+
+    @Test
+    fun `confirm uninstall runs uninstall and refreshes`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            vm.requestUninstallSelected()
+            val confirm = vm.state.value.overlay as Overlay.Confirm
+            confirm.onConfirm()
+            advanceUntilIdle()
+            assertNull(vm.state.value.overlay)
+            assertEquals(10, vm.state.value.versions.size)
+        }
+
+    @Test
+    fun `refreshVersions reloads defaults and versions`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            vm.refreshVersions()
+            advanceUntilIdle()
+            assertEquals(10, vm.state.value.versions.size)
+            assertFalse(vm.state.value.loading)
+        }
+
+    @Test
+    fun `showHelp sets Help overlay`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.showHelp()
+            assertTrue(vm.state.value.overlay is Overlay.Help)
+        }
+
+    @Test
+    fun `showCandidateBrowser sets CandidateBrowser overlay with loaded candidates`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceUntilIdle()
+            vm.showCandidateBrowser()
+            val overlay = vm.state.value.overlay
+            assertTrue(overlay is Overlay.CandidateBrowser)
+            assertEquals(FakeSdkmanService.CANDIDATES, (overlay as Overlay.CandidateBrowser).candidates)
+        }
+
+    @Test
+    fun `installLatestCandidate streams progress and sets status message`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            advanceUntilIdle()
+            vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[2]) // maven, no selectedCandidate
+            advanceTimeBy(2_001) // past the 2s overlay delay, but before the 3s status-clear
+            assertNull(vm.state.value.overlay)
+            assertEquals("Installed maven", vm.state.value.statusMessage)
+        }
+
+    @Test
+    fun `installLatestCandidate reloads versions when a candidate is selected`() =
+        runTest {
+            val vm = AppViewModel(FakeSdkmanService(), this, Files.createTempDirectory("sdkui-test").toFile().absolutePath)
+            vm.loadCandidatesAndDefaults()
+            vm.selectCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            vm.installLatestCandidate(FakeSdkmanService.CANDIDATES[0])
+            advanceUntilIdle()
+            assertNull(vm.state.value.overlay)
+            assertEquals(10, vm.state.value.versions.size)
+        }
 }

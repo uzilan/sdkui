@@ -19,7 +19,7 @@ class CurrentVersionsOverlay(
     defaults: Map<String, String>,
     latestVersions: Map<String, String> = emptyMap(),
     onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) : BasicWindow("Current Versions") {
     init {
         val sorted = defaults.entries.sortedBy { it.key }
@@ -31,23 +31,29 @@ class CurrentVersionsOverlay(
             val maxLen = sorted.maxOf { it.key.length }
             val versionMaxLen = sorted.maxOf { it.value.length }
             val listBox = ActionListBox()
-            listBox.setListItemRenderer(object : AbstractListBox.ListItemRenderer<Runnable, ActionListBox>() {
-                override fun drawItem(
-                    graphics: TextGUIGraphics, lb: ActionListBox, index: Int,
-                    item: Runnable, selected: Boolean, focused: Boolean
-                ) {
-                    val label = getLabel(lb, index, item)
-                    val width = graphics.size.columns
-                    val text = label.take(width).padEnd(width)
-                    if (selected && focused) {
-                        graphics.foregroundColor = TextColor.ANSI.BLACK
-                        graphics.backgroundColor = TextColor.ANSI.GREEN
-                        graphics.putString(0, 0, text)
-                    } else {
-                        super.drawItem(graphics, lb, index, item, selected, focused)
+            listBox.setListItemRenderer(
+                object : AbstractListBox.ListItemRenderer<Runnable, ActionListBox>() {
+                    override fun drawItem(
+                        graphics: TextGUIGraphics,
+                        lb: ActionListBox,
+                        index: Int,
+                        item: Runnable,
+                        selected: Boolean,
+                        focused: Boolean,
+                    ) {
+                        val label = getLabel(lb, index, item)
+                        val width = graphics.size.columns
+                        val text = label.take(width).padEnd(width)
+                        if (selected && focused) {
+                            graphics.foregroundColor = TextColor.ANSI.BLACK
+                            graphics.backgroundColor = TextColor.ANSI.GREEN
+                            graphics.putString(0, 0, text)
+                        } else {
+                            super.drawItem(graphics, lb, index, item, selected, focused)
+                        }
                     }
-                }
-            })
+                },
+            )
             sorted.forEach { (name, version) ->
                 val latest = latestVersions[name]
                 val newerMarker = if (!latest.isNullOrBlank() && latest != version) "  → $latest" else ""
@@ -63,14 +69,20 @@ class CurrentVersionsOverlay(
         panel.addComponent(Label("  Enter-navigate   Esc-close"), BorderLayout.Location.BOTTOM)
         component = panel
         setHints(setOf(Window.Hint.CENTERED))
-        addWindowListener(object : WindowListenerAdapter() {
-            override fun onUnhandledInput(basePane: Window, keyStroke: KeyStroke, hasBeenHandled: AtomicBoolean) {
-                if (keyStroke.keyType == KeyType.Escape) {
-                    close()
-                    onDismiss()
-                    hasBeenHandled.set(true)
+        addWindowListener(
+            object : WindowListenerAdapter() {
+                override fun onUnhandledInput(
+                    basePane: Window,
+                    keyStroke: KeyStroke,
+                    hasBeenHandled: AtomicBoolean,
+                ) {
+                    if (keyStroke.keyType == KeyType.Escape) {
+                        close()
+                        onDismiss()
+                        hasBeenHandled.set(true)
+                    }
                 }
-            }
-        })
+            },
+        )
     }
 }

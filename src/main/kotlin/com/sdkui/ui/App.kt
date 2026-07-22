@@ -1,13 +1,5 @@
 package com.sdkui.ui
 
-import com.sdkui.model.AppState
-import com.sdkui.model.Overlay
-import com.sdkui.ui.overlays.CandidateBrowserOverlay
-import com.sdkui.ui.overlays.ConfirmOverlay
-import com.sdkui.ui.overlays.CurrentVersionsOverlay
-import com.sdkui.ui.overlays.HelpOverlay
-import com.sdkui.ui.overlays.ProgressOverlay
-import com.sdkui.viewmodel.AppViewModel
 import com.googlecode.lanterna.TextColor
 import com.googlecode.lanterna.bundle.LanternaThemes
 import com.googlecode.lanterna.gui2.AbstractListBox
@@ -26,6 +18,14 @@ import com.googlecode.lanterna.gui2.WindowListenerAdapter
 import com.googlecode.lanterna.input.KeyStroke
 import com.googlecode.lanterna.input.KeyType
 import com.googlecode.lanterna.screen.Screen
+import com.sdkui.model.AppState
+import com.sdkui.model.Overlay
+import com.sdkui.ui.overlays.CandidateBrowserOverlay
+import com.sdkui.ui.overlays.ConfirmOverlay
+import com.sdkui.ui.overlays.CurrentVersionsOverlay
+import com.sdkui.ui.overlays.HelpOverlay
+import com.sdkui.ui.overlays.ProgressOverlay
+import com.sdkui.viewmodel.AppViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,7 +38,7 @@ class App(
     private val gui: MultiWindowTextGUI,
     private val screen: Screen,
     private val viewModel: AppViewModel,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     private val logFile = File(System.getProperty("user.home"), ".sdkui.log")
     private val versionListPanel = VersionListPanel()
@@ -74,11 +74,11 @@ class App(
         val centerPanel = Panel(BorderLayout())
         centerPanel.addComponent(
             versionListPanel.withBorder(Borders.singleLine("Versions")),
-            BorderLayout.Location.LEFT
+            BorderLayout.Location.LEFT,
         )
         centerPanel.addComponent(
             detailPanel.withBorder(Borders.singleLine("Details")),
-            BorderLayout.Location.CENTER
+            BorderLayout.Location.CENTER,
         )
 
         // Bottom: status + key hints
@@ -104,12 +104,18 @@ class App(
             viewModel.state.value.versions.getOrNull(index)?.let { viewModel.selectVersion(it) }
         }
 
-        window.addWindowListener(object : WindowListenerAdapter() {
-            override fun onUnhandledInput(basePane: Window, keyStroke: KeyStroke, hasBeenHandled: AtomicBoolean) {
-                handleKey(keyStroke)
-                hasBeenHandled.set(true)
-            }
-        })
+        window.addWindowListener(
+            object : WindowListenerAdapter() {
+                override fun onUnhandledInput(
+                    basePane: Window,
+                    keyStroke: KeyStroke,
+                    hasBeenHandled: AtomicBoolean,
+                ) {
+                    handleKey(keyStroke)
+                    hasBeenHandled.set(true)
+                }
+            },
+        )
 
         scope.launch {
             runCatching {
@@ -118,9 +124,12 @@ class App(
                         try {
                             applyState(state)
                         } catch (e: Exception) {
-                            log("applyState error: ${e}")
+                            log("applyState error: $e")
                         }
-                        try { gui.updateScreen() } catch (_: Exception) {}
+                        try {
+                            gui.updateScreen()
+                        } catch (_: Exception) {
+                        }
                     }
                 }
             }.onFailure { log("state collector error: $it") }
@@ -137,16 +146,20 @@ class App(
         keyHints.setText(if (state.sdkmanUpdateStatus?.updateAvailable == true) UPDATE_KEY_HINTS else DEFAULT_KEY_HINTS)
         if (state.loading) {
             if (spinnerJob == null) {
-                spinnerJob = scope.launch {
-                    while (true) {
-                        synchronized(gui) {
-                            statusBar.setText("${spinnerFrames[spinnerIndex % spinnerFrames.size]} Loading...")
-                            spinnerIndex++
-                            try { gui.updateScreen() } catch (_: Exception) {}
+                spinnerJob =
+                    scope.launch {
+                        while (true) {
+                            synchronized(gui) {
+                                statusBar.setText("${spinnerFrames[spinnerIndex % spinnerFrames.size]} Loading...")
+                                spinnerIndex++
+                                try {
+                                    gui.updateScreen()
+                                } catch (_: Exception) {
+                                }
+                            }
+                            delay(100)
                         }
-                        delay(100)
                     }
-                }
             }
         } else {
             spinnerJob?.cancel()
@@ -176,15 +189,23 @@ class App(
             is Overlay.Confirm -> {
                 if (currentOverlayWindow is ConfirmOverlay) return
                 currentOverlayWindow?.close()
-                currentOverlayWindow = ConfirmOverlay(
-                    message = overlay.message,
-                    onConfirm = { overlay.onConfirm(); viewModel.closeOverlay() },
-                    onDismiss = { viewModel.closeOverlay() }
-                ).also { gui.addWindow(it) }
+                currentOverlayWindow =
+                    ConfirmOverlay(
+                        message = overlay.message,
+                        onConfirm = {
+                            overlay.onConfirm()
+                            viewModel.closeOverlay()
+                        },
+                        onDismiss = { viewModel.closeOverlay() },
+                    ).also { gui.addWindow(it) }
             }
             is Overlay.Progress -> {
-                val win = currentOverlayWindow as? ProgressOverlay
-                    ?: ProgressOverlay(overlay.title).also { currentOverlayWindow = it; gui.addWindow(it) }
+                val win =
+                    currentOverlayWindow as? ProgressOverlay
+                        ?: ProgressOverlay(overlay.title).also {
+                            currentOverlayWindow = it
+                            gui.addWindow(it)
+                        }
                 for (i in win.lineCount until overlay.lines.size) {
                     win.appendLine(overlay.lines[i])
                 }
@@ -197,27 +218,32 @@ class App(
             is Overlay.CurrentVersions -> {
                 if (currentOverlayWindow is CurrentVersionsOverlay) return
                 currentOverlayWindow?.close()
-                currentOverlayWindow = CurrentVersionsOverlay(
-                    defaults = overlay.defaults,
-                    latestVersions = overlay.latestVersions,
-                    onSelect = { name ->
-                        viewModel.closeOverlay()
-                        val sdk = viewModel.state.value.candidates.firstOrNull { it.name == name } ?: return@CurrentVersionsOverlay
-                        val preferredVendor = if (name == "java") overlay.defaults["java"]?.substringAfterLast("-") else null
-                        viewModel.selectCandidate(sdk, preferredVendor)
-                    },
-                    onDismiss = { viewModel.closeOverlay() }
-                ).also { gui.addWindow(it) }
+                currentOverlayWindow =
+                    CurrentVersionsOverlay(
+                        defaults = overlay.defaults,
+                        latestVersions = overlay.latestVersions,
+                        onSelect = { name ->
+                            viewModel.closeOverlay()
+                            val sdk = viewModel.state.value.candidates.firstOrNull { it.name == name } ?: return@CurrentVersionsOverlay
+                            val preferredVendor = if (name == "java") overlay.defaults["java"]?.substringAfterLast("-") else null
+                            viewModel.selectCandidate(sdk, preferredVendor)
+                        },
+                        onDismiss = { viewModel.closeOverlay() },
+                    ).also { gui.addWindow(it) }
             }
             is Overlay.CandidateBrowser -> {
                 if (currentOverlayWindow is CandidateBrowserOverlay) return
                 currentOverlayWindow?.close()
-                currentOverlayWindow = CandidateBrowserOverlay(
-                    candidates = overlay.candidates,
-                    installedVersions = overlay.installedVersions,
-                    onInstall = { sdk -> viewModel.closeOverlay(); viewModel.installLatestCandidate(sdk) },
-                    onDismiss = { viewModel.closeOverlay() }
-                ).also { gui.addWindow(it) }
+                currentOverlayWindow =
+                    CandidateBrowserOverlay(
+                        candidates = overlay.candidates,
+                        installedVersions = overlay.installedVersions,
+                        onInstall = { sdk ->
+                            viewModel.closeOverlay()
+                            viewModel.installLatestCandidate(sdk)
+                        },
+                        onDismiss = { viewModel.closeOverlay() },
+                    ).also { gui.addWindow(it) }
             }
         }
     }
@@ -245,30 +271,39 @@ class App(
         val win = BasicWindow("Choose Theme")
         win.setHints(setOf(Window.Hint.CENTERED))
         val listBox = ActionListBox()
-        listBox.setListItemRenderer(object : AbstractListBox.ListItemRenderer<Runnable, ActionListBox>() {
-            override fun drawItem(graphics: TextGUIGraphics, lb: ActionListBox, index: Int, item: Runnable, selected: Boolean, focused: Boolean) {
-                val name = getLabel(lb, index, item)
-                val prefix = if (name == currentThemeName) "> " else "  "
-                val label = "$prefix$name"
-                val width = graphics.size.columns
-                val text = label.take(width).padEnd(width)
-                val theme = LanternaThemes.getRegisteredTheme(name)
-                val def = theme?.getDefinition(ActionListBox::class.java)
-                if (def != null) {
-                    val style = if (selected && focused) def.selected else def.normal
-                    graphics.applyThemeStyle(style)
-                } else {
-                    if (selected && focused) {
-                        graphics.setForegroundColor(TextColor.ANSI.BLACK)
-                        graphics.setBackgroundColor(TextColor.ANSI.GREEN)
+        listBox.setListItemRenderer(
+            object : AbstractListBox.ListItemRenderer<Runnable, ActionListBox>() {
+                override fun drawItem(
+                    graphics: TextGUIGraphics,
+                    lb: ActionListBox,
+                    index: Int,
+                    item: Runnable,
+                    selected: Boolean,
+                    focused: Boolean,
+                ) {
+                    val name = getLabel(lb, index, item)
+                    val prefix = if (name == currentThemeName) "> " else "  "
+                    val label = "$prefix$name"
+                    val width = graphics.size.columns
+                    val text = label.take(width).padEnd(width)
+                    val theme = LanternaThemes.getRegisteredTheme(name)
+                    val def = theme?.getDefinition(ActionListBox::class.java)
+                    if (def != null) {
+                        val style = if (selected && focused) def.selected else def.normal
+                        graphics.applyThemeStyle(style)
                     } else {
-                        super.drawItem(graphics, lb, index, item, selected, focused)
+                        if (selected && focused) {
+                            graphics.setForegroundColor(TextColor.ANSI.BLACK)
+                            graphics.setBackgroundColor(TextColor.ANSI.GREEN)
+                        } else {
+                            super.drawItem(graphics, lb, index, item, selected, focused)
+                        }
                     }
+                    graphics.fill(' ')
+                    graphics.putString(0, 0, text)
                 }
-                graphics.fill(' ')
-                graphics.putString(0, 0, text)
-            }
-        })
+            },
+        )
         themes.forEach { name ->
             listBox.addItem(name) {
                 currentThemeName = name
@@ -276,11 +311,20 @@ class App(
                 win.close()
             }
         }
-        win.addWindowListener(object : WindowListenerAdapter() {
-            override fun onUnhandledInput(basePane: Window, key: KeyStroke, hasBeenHandled: AtomicBoolean) {
-                if (key.keyType == KeyType.Escape) { win.close(); hasBeenHandled.set(true) }
-            }
-        })
+        win.addWindowListener(
+            object : WindowListenerAdapter() {
+                override fun onUnhandledInput(
+                    basePane: Window,
+                    key: KeyStroke,
+                    hasBeenHandled: AtomicBoolean,
+                ) {
+                    if (key.keyType == KeyType.Escape) {
+                        win.close()
+                        hasBeenHandled.set(true)
+                    }
+                }
+            },
+        )
         win.component = listBox
         gui.addWindow(win)
     }

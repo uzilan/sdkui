@@ -6,7 +6,6 @@ import com.sdkui.model.Sdk
 import com.sdkui.model.Version
 import com.sdkui.model.VersionStatus
 import com.sdkui.service.SdkmanService
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -16,13 +15,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 private val ANSI_RE = Regex("""\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])""")
 
 class AppViewModel(
     private val service: SdkmanService,
     private val scope: CoroutineScope,
-    private val sdkmanRoot: String = "${System.getProperty("user.home")}/.sdkman"
+    private val sdkmanRoot: String = "${System.getProperty("user.home")}/.sdkman",
 ) {
     private val _state = MutableStateFlow(AppState())
     val state: StateFlow<AppState> = _state.asStateFlow()
@@ -34,11 +34,14 @@ class AppViewModel(
             service.checkForUpdate().onSuccess { status ->
                 update {
                     copy(
-                        updateMessage = if (status.updateAvailable) {
-                            "SDKMAN update available: script ${status.localScript} → ${status.remoteScript}, " +
-                                "native ${status.localNative} → ${status.remoteNative} — press s to update"
-                        } else "",
-                        sdkmanUpdateStatus = status
+                        updateMessage =
+                            if (status.updateAvailable) {
+                                "SDKMAN update available: script ${status.localScript} → ${status.remoteScript}, " +
+                                    "native ${status.localNative} → ${status.remoteNative} — press s to update"
+                            } else {
+                                ""
+                            },
+                        sdkmanUpdateStatus = status,
                     )
                 }
             }
@@ -65,14 +68,17 @@ class AppViewModel(
                 copy(
                     loading = false,
                     candidates = candidateList,
-                    currentDefaults = defaults.getOrThrow()
+                    currentDefaults = defaults.getOrThrow(),
                 )
             }
             candidateList.firstOrNull()?.let { selectCandidate(it) }
         }
     }
 
-    fun selectCandidate(sdk: Sdk, preferredVendor: String? = null) {
+    fun selectCandidate(
+        sdk: Sdk,
+        preferredVendor: String? = null,
+    ) {
         update { copy(selectedCandidate = sdk, selectedVendor = null, versions = emptyList(), selectedVersion = null) }
         loadVersions(preferredVendor)
     }
@@ -104,46 +110,54 @@ class AppViewModel(
                 }
                 val allVersions = allResult.getOrThrow()
                 newAvailableVendors = allVersions.mapNotNull { it.vendor }.distinct()
-                effectiveVendor = if (preferredVendor != null)
-                    newAvailableVendors.firstOrNull { it.equals(preferredVendor, ignoreCase = true) }
-                        ?: allVersions.firstOrNull { it.identifier.endsWith("-$preferredVendor", ignoreCase = true) }?.vendor
-                        ?: newAvailableVendors.firstOrNull()
-                else newAvailableVendors.firstOrNull()
+                effectiveVendor =
+                    if (preferredVendor != null) {
+                        newAvailableVendors.firstOrNull { it.equals(preferredVendor, ignoreCase = true) }
+                            ?: allVersions.firstOrNull { it.identifier.endsWith("-$preferredVendor", ignoreCase = true) }?.vendor
+                            ?: newAvailableVendors.firstOrNull()
+                    } else {
+                        newAvailableVendors.firstOrNull()
+                    }
             }
 
             service.listVersions(candidate.name, effectiveVendor).fold(
                 onSuccess = { raw ->
                     val defaults = _state.value.currentDefaults
-                    val installed = File("$sdkmanRoot/candidates/${candidate.name}")
-                        .listFiles()?.map { it.name }?.toSet() ?: emptySet()
+                    val installed =
+                        File("$sdkmanRoot/candidates/${candidate.name}")
+                            .listFiles()?.map { it.name }?.toSet() ?: emptySet()
                     val defaultId = defaults[candidate.name]
-                    val versions = raw.map { v ->
-                        v.copy(status = when {
-                            v.identifier == defaultId -> VersionStatus.DEFAULT
-                            v.identifier in installed -> VersionStatus.INSTALLED
-                            else -> VersionStatus.AVAILABLE
-                        })
-                    }.sortedWith { a, b ->
-                        val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
-                        val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
-                        (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
-                            (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
-                        } ?: 0
-                    }
+                    val versions =
+                        raw.map { v ->
+                            v.copy(
+                                status =
+                                    when {
+                                        v.identifier == defaultId -> VersionStatus.DEFAULT
+                                        v.identifier in installed -> VersionStatus.INSTALLED
+                                        else -> VersionStatus.AVAILABLE
+                                    },
+                            )
+                        }.sortedWith { a, b ->
+                            val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
+                            val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
+                            (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
+                                (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
+                            } ?: 0
+                        }
                     update {
                         copy(
                             loading = false,
                             versions = versions,
                             availableVendors = newAvailableVendors ?: availableVendors,
                             selectedVendor = effectiveVendor ?: selectedVendor,
-                            selectedVersion = versions.firstOrNull()
+                            selectedVersion = versions.firstOrNull(),
                         )
                     }
                 },
                 onFailure = { e ->
                     update { copy(loading = false) }
                     setStatusMessage(e.message ?: "Error loading versions")
-                }
+                },
             )
         }
     }
@@ -162,7 +176,11 @@ class AppViewModel(
         update { copy(overlay = null) }
     }
 
-    private suspend fun runWithProgress(title: String, flow: Flow<String>, onDone: suspend () -> Unit = {}) {
+    private suspend fun runWithProgress(
+        title: String,
+        flow: Flow<String>,
+        onDone: suspend () -> Unit = {},
+    ) {
         openProgress(title)
         try {
             flow.collect { line -> appendProgressLine(line) }
@@ -185,20 +203,24 @@ class AppViewModel(
             setStatusMessage("SDKMAN is up to date")
             return
         }
-        val message = "Update SDKMAN?\n\n" +
-            "Script: ${status.localScript} → ${status.remoteScript}\n" +
-            "Native: ${status.localNative} → ${status.remoteNative}"
+        val message =
+            "Update SDKMAN?\n\n" +
+                "Script: ${status.localScript} → ${status.remoteScript}\n" +
+                "Native: ${status.localNative} → ${status.remoteNative}"
         update {
-            copy(overlay = Overlay.Confirm(message) {
-                scope.launch {
-                    closeOverlay()
-                    runWithProgress("Updating SDKMAN", service.selfUpdate()) {
-                        checkForSdkmanUpdate()
-                        loadCandidatesAndDefaults()
-                        setStatusMessage("SDKMAN updated successfully")
-                    }
-                }
-            })
+            copy(
+                overlay =
+                    Overlay.Confirm(message) {
+                        scope.launch {
+                            closeOverlay()
+                            runWithProgress("Updating SDKMAN", service.selfUpdate()) {
+                                checkForSdkmanUpdate()
+                                loadCandidatesAndDefaults()
+                                setStatusMessage("SDKMAN updated successfully")
+                            }
+                        }
+                    },
+            )
         }
     }
 
@@ -219,8 +241,14 @@ class AppViewModel(
     fun setDefaultSelected() {
         val candidate = _state.value.selectedCandidate ?: return
         val version = _state.value.selectedVersion ?: return
-        if (version.status == VersionStatus.AVAILABLE) { setStatusMessage("Cannot use ${version.identifier} — not installed"); return }
-        if (version.status == VersionStatus.DEFAULT) { setStatusMessage("${version.identifier} is already the default"); return }
+        if (version.status == VersionStatus.AVAILABLE) {
+            setStatusMessage("Cannot use ${version.identifier} — not installed")
+            return
+        }
+        if (version.status == VersionStatus.DEFAULT) {
+            setStatusMessage("${version.identifier} is already the default")
+            return
+        }
         scope.launch {
             service.setDefault(candidate.name, version.identifier).fold(
                 onSuccess = {
@@ -228,7 +256,7 @@ class AppViewModel(
                     loadVersions()
                     setStatusMessage("Default set to ${version.identifier}")
                 },
-                onFailure = { e -> setStatusMessage(e.message ?: "Error setting default") }
+                onFailure = { e -> setStatusMessage(e.message ?: "Error setting default") },
             )
         }
     }
@@ -237,15 +265,18 @@ class AppViewModel(
         val candidate = _state.value.selectedCandidate ?: return
         val version = _state.value.selectedVersion ?: return
         update {
-            copy(overlay = Overlay.Confirm("Uninstall ${version.identifier}?") {
-                scope.launch {
-                    closeOverlay()
-                    runWithProgress("Uninstalling ${version.identifier}", service.uninstall(candidate.name, version.identifier)) {
-                        loadVersions()
-                        setStatusMessage("Uninstalled ${version.identifier}")
-                    }
-                }
-            })
+            copy(
+                overlay =
+                    Overlay.Confirm("Uninstall ${version.identifier}?") {
+                        scope.launch {
+                            closeOverlay()
+                            runWithProgress("Uninstalling ${version.identifier}", service.uninstall(candidate.name, version.identifier)) {
+                                loadVersions()
+                                setStatusMessage("Uninstalled ${version.identifier}")
+                            }
+                        }
+                    },
+            )
         }
     }
 
@@ -266,32 +297,35 @@ class AppViewModel(
         scope.launch {
             update { copy(loading = true) }
             val candidatesDir = File("$sdkmanRoot/candidates")
-            val installed = candidatesDir.listFiles()
-                ?.filter { it.isDirectory }
-                ?.mapNotNull { dir ->
-                    val current = File(dir, "current")
-                    if (current.exists()) dir.name to current.canonicalFile.name else null
-                }
-                ?.toMap() ?: emptyMap()
+            val installed =
+                candidatesDir.listFiles()
+                    ?.filter { it.isDirectory }
+                    ?.mapNotNull { dir ->
+                        val current = File(dir, "current")
+                        if (current.exists()) dir.name to current.canonicalFile.name else null
+                    }
+                    ?.toMap() ?: emptyMap()
             val freshCandidates = service.listCandidates().getOrElse { _state.value.candidates }
             update { copy(candidates = freshCandidates) }
-            val latestVersions = freshCandidates
-                .filter { it.name != "java" }
-                .associate { it.name to it.version }
-                .toMutableMap()
+            val latestVersions =
+                freshCandidates
+                    .filter { it.name != "java" }
+                    .associate { it.name to it.version }
+                    .toMutableMap()
             val javaInstalled = installed["java"]
             if (javaInstalled != null) {
                 val vendorSuffix = javaInstalled.substringAfterLast("-")
                 service.listVersions("java", null).onSuccess { versions ->
-                    val latest = versions
-                        .filter { it.identifier.endsWith("-$vendorSuffix", ignoreCase = true) }
-                        .sortedWith { a, b ->
-                            val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
-                            val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
-                            (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
-                                (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
-                            } ?: 0
-                        }.firstOrNull()
+                    val latest =
+                        versions
+                            .filter { it.identifier.endsWith("-$vendorSuffix", ignoreCase = true) }
+                            .sortedWith { a, b ->
+                                val ap = a.number.split(".").map { it.toIntOrNull() ?: 0 }
+                                val bp = b.number.split(".").map { it.toIntOrNull() ?: 0 }
+                                (0 until maxOf(ap.size, bp.size)).firstNotNullOfOrNull { i ->
+                                    (bp.getOrElse(i) { 0 } - ap.getOrElse(i) { 0 }).takeIf { it != 0 }
+                                } ?: 0
+                            }.firstOrNull()
                     if (latest != null) latestVersions["java"] = latest.identifier
                 }
             }
